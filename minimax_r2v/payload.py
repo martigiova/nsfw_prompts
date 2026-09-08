@@ -40,6 +40,11 @@ class JobRequest:
     def all_media(self) -> list[MediaRef]:
         return [*self.images, *self.videos, *self.audios]
 
+    def needs_hydrate(self) -> bool:
+        if self.workflow:
+            return False
+        return (not self.prompt.strip()) or (not self.images and not self.videos)
+
 
 def _as_list(value: Any) -> list[Any]:
     if value is None:
@@ -111,9 +116,6 @@ def parse_job_input(job_input: Any) -> tuple[JobRequest | None, str | None]:
         )
 
     prompt = (job_input.get("prompt") or job_input.get("direction") or "").strip()
-    if not prompt:
-        return None, "Missing 'prompt'"
-
     images = _media_list(
         job_input.get("images") or job_input.get("image") or job_input.get("image_url"),
         "image",
@@ -130,7 +132,10 @@ def parse_job_input(job_input: Any) -> tuple[JobRequest | None, str | None]:
         3,
     )
 
-    if not images and not videos:
+    airtable = _airtable_from(job_input)
+    if not prompt and not airtable:
+        return None, "Missing 'prompt'"
+    if not images and not videos and not airtable:
         return None, "Provide at least one reference image or video"
 
     duration = float(job_input.get("duration") or job_input.get("length_seconds") or 8)
@@ -159,7 +164,7 @@ def parse_job_input(job_input: Any) -> tuple[JobRequest | None, str | None]:
             job_type=str(job_input.get("job_type") or "auto"),
             motion_lora=job_input.get("motion_lora"),
             skip_motion_lora=skip_motion,
-            airtable=_airtable_from(job_input),
+            airtable=airtable,
         ),
         None,
     )
@@ -186,6 +191,63 @@ def _airtable_from(job_input: dict[str, Any]) -> AirtableTarget | None:
             )
     if record_id:
         return AirtableTarget(record_id=str(record_id))
+    return None
+
+
+def apply_airtable_fields(job: JobRequest, fields: dict[str, Any]) -> JobRequest:
+    """Fill prompt/media from an Airtable record when the API only sent a record id."""
+    import os
+
+    prompt_field = os.environ.get("AIRTABLE_PROMPT_FIELD", "Prompt")
+    image_field = os.environ.get("AIRTABLE_IMAGE_FIELD", "Image")
+    video_field = os.environ.get("AIRTABLE_VIDEO_FIELD", "Video")
+    audio_field = os.environ.get("AIRTABLE_AUDIO_FIELD", "Audio")
+    duration_field = os.environ.get("AIRTABLE_DURATION_FIELD", "Duration")
+    aspect_field = os.environ.get("AIRTABLE_ASPECT_FIELD", "Aspect")
+    auto_field = os.environ.get("AIRTABLE_AUTO_PROMPT_FIELD", "Auto Prompt")
+
+    prompt = job.prompt.strip() or str(_first_field(fields, prompt_field, "prompt", "Direction") or "").strip()
+    images = job.images or _media_list(_first_field(fields, image_field, "Images", "image"), "image", 9)
+    videos = job.videos or _media_list(_first_field(fields, video_field, "Videos", "video"), "video", 3)
+    audios = job.audios or _media_list(_first_field(fields, audio_field, "Audios", "audio"), "audio", 3)
+    duration_raw = _first_field(fields, duration_field, "duration", "length_seconds")
+    aspect_raw = _first_field(fields, aspect_field, "aspect_ratio", "Aspect Ratio")
+    auto_raw = _first_field(fields, auto_field, "auto_prompt")
+
+    duration = job.duration
+    if duration_raw not in (None, "") and job.duration == 8.0:
+        duration = float(duration_raw)
+    aspect = job.aspect_ratio
+    if aspect_raw and job.aspect_ratio == "9:16":
+        aspect = str(aspect_raw)
+    auto_prompt = job.auto_prompt
+    if auto_raw is not None and not job.auto_prompt:
+        auto_prompt = _as_bool(auto_raw)
+
+    return JobRequest(
+        prompt=prompt,
+        images=images,
+        videos=videos,
+        audios=audios,
+        duration=duration,
+        aspect_ratio=aspect,
+        seed=job.seed,
+        auto_prompt=auto_prompt,
+        job_type=job.job_type,
+        motion_lora=job.motion_lora,
+        skip_motion_lora=job.skip_motion_lora,
+        airtable=job.airtable,
+        workflow=job.workflow,
+    )
+
+
+def _first_field(fields: dict[str, Any], *names: str) -> Any:
+    lowered = {str(key).lower(): value for key, value in fields.items()}
+    for name in names:
+        if name in fields and fields[name] not in (None, ""):
+            return fields[name]
+        if name.lower() in lowered and lowered[name.lower()] not in (None, ""):
+            return lowered[name.lower()]
     return None
 
 

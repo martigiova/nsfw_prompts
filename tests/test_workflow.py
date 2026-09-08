@@ -72,5 +72,6 @@ def test_keeps_motion_lora_when_named():
         motion_lora_name="hmmotion_minimax-h3_epoch40.safetensors",
         skip_motion_lora=False,
     )
-    assert workflow["137"]["inputs"]["lora_1"]["lora"] == "hmmotion_minimax-h3_epoch40.safetensors"
-    assert workflow["137"]["inputs"]["lora_1"]["on"] is True
+    assert workflow["137"]["inputs"]["lora_7"]["lora"] == "hmmotion_minimax-h3_epoch40.safetensors"
+    assert workflow["137"]["inputs"]["lora_7"]["on"] is True
+    assert workflow["137"]["inputs"]["lora_1"]["on"] is False

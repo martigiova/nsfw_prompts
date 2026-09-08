@@ -9,7 +9,7 @@ from pathlib import Path
 from .airtable import AirtableClient
 from .comfy import ComfyClient
 from .media import download_media
-from .payload import JobRequest, parse_job_input, references_manifest
+from .payload import JobRequest, apply_airtable_fields, parse_job_input, references_manifest
 from .storage import s3_configured, upload_file
 from .workflow import build_workflow
 
@@ -35,6 +35,18 @@ def run_job(event: dict) -> dict:
     airtable = _airtable_for(job)
     record_id = job.airtable.record_id if job.airtable else None
     try:
+        if job.needs_hydrate():
+            if not airtable or not record_id:
+                return {"error": "Airtable record id was sent but AIRTABLE_TOKEN/BASE_ID are missing"}
+            record = airtable.get_record(record_id)
+            job = apply_airtable_fields(job, record.get("fields") or {})
+            if not job.prompt.strip():
+                return {"error": "Airtable record is missing Prompt"}
+            if not job.images and not job.videos:
+                return {"error": "Airtable record needs at least one Image or Video attachment"}
+            if job.duration <= 0 or job.duration > 15:
+                return {"error": "duration must be between 0 and 15 seconds"}
+
         if airtable and record_id:
             airtable.mark_running(record_id, job_id)
 

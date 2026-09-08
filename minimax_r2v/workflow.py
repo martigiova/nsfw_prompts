@@ -80,7 +80,17 @@ def _apply_motion_lora(workflow: dict[str, Any], lora_name: str | None, skip: bo
         workflow.pop(LORA_NODE, None)
         return
     lora = workflow[LORA_NODE]["inputs"]
-    lora["lora_1"] = {"on": True, "lora": lora_name, "strength": 1}
+    matched = False
+    for key, value in list(lora.items()):
+        if not key.startswith("lora_") or not isinstance(value, dict):
+            continue
+        if lora_name and value.get("lora") == lora_name:
+            value["on"] = True
+            matched = True
+        elif key != "lora_7":
+            value["on"] = bool(value.get("on", False))
+    if not matched:
+        lora["lora_1"] = {"on": True, "lora": lora_name, "strength": 1}
 
 
 def _random_seed() -> int:

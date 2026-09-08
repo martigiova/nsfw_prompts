@@ -93,6 +93,36 @@
         "type": "PowerLoraLoaderHeaderWidget"
       },
       "lora_1": {
+        "on": false,
+        "lora": "HMCumshot_v1_e120.safetensors",
+        "strength": 1
+      },
+      "lora_2": {
+        "on": false,
+        "lora": "HMNSFW_AIO_V2.safetensors",
+        "strength": 0.4
+      },
+      "lora_3": {
+        "on": false,
+        "lora": "HMBreasts_085e0750_e40.safetensors",
+        "strength": 0.75
+      },
+      "lora_4": {
+        "on": false,
+        "lora": "hmcumshot3_minimax-h3_epoch15.safetensors",
+        "strength": 1
+      },
+      "lora_5": {
+        "on": false,
+        "lora": "hmcumshot3_minimax-h3_epoch35.safetensors",
+        "strength": 0.5
+      },
+      "lora_6": {
+        "on": false,
+        "lora": "hmcumshot3_minimax-h3_epoch50.safetensors",
+        "strength": 0.6
+      },
+      "lora_7": {
         "on": true,
         "lora": "hmmotion_minimax-h3_epoch40.safetensors",
         "strength": 1

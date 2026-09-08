@@ -34,6 +34,21 @@ class AirtableClient:
     def enabled(self) -> bool:
         return bool(self.token and self.base_id and self.table)
 
+    def get_record(self, record_id: str) -> dict[str, Any]:
+        if not self.enabled:
+            raise RuntimeError("Airtable is not configured")
+        url = (
+            f"{DEFAULT_API}/{self.base_id}/"
+            f"{quote(self.table, safe='')}/{record_id}"
+        )
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {self.token}"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def mark_running(self, record_id: str, job_id: str) -> None:
         self.patch(
             record_id,

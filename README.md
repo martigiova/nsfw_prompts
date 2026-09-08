@@ -7,16 +7,17 @@ Senza SSH sul pod e senza `RUNPOD_API_KEY` non posso montare il volume sul tuo a
 ## Architettura
 
 ```
-Airtable (Status = Queued)
+Airtable (Status = Queued, solo record id)
     → script submit_job.js
     → POST https://api.runpod.ai/v2/<endpoint>/run
-    → Worker GPU (ComfyUI headless + MiniMax H3 R2V)
-         legge i pesi da /runpod-volume/models
+    → Worker GPU (stesso stack ComfyUI del template MiniMax)
+         legge Prompt/Image/Video/Audio dal record Airtable
+         legge i pesi da /runpod-volume/models o /runpod-volume/ComfyUI/models
     → upload mp4 su S3/R2
     → PATCH Airtable (Status=Done, Output=video)
 ```
 
-Su un Pod il volume è `/workspace`. Sul serverless lo stesso volume è `/runpod-volume`. I pesi vanno quindi in `models/` alla radice del volume, non dentro il container.
+Su un Pod il volume è `/workspace`. Sul serverless lo stesso volume è `/runpod-volume`. Il worker cerca i pesi in entrambi i layout (`models/` in radice e `ComfyUI/models/`).
 
 ## Pesi del workflow allegato
 
@@ -41,24 +42,21 @@ Volume consigliato: **100–150 GB**, stessa regione dell’endpoint. GPU: RTX 4
 
 ```bash
 git clone <questo-repo> /workspace/nsfw_prompts
-bash /workspace/nsfw_prompts/scripts/bootstrap_network_volume.sh
-bash /workspace/nsfw_prompts/scripts/link_pod_models.sh   # opzionale, per condividere i pesi anche con la GUI
+bash /workspace/nsfw_prompts/scripts/on_pod.sh
 ```
 
-Lo script scarica i pesi ufficiali e, se li trova già nel workspace del template, fa solo un link. Le LoRA custom (`hmmotion_...`) vengono copiate dal pod se esistono.
+`on_pod.sh` scarica i pesi ufficiali, linka quelli già presenti nel template GUI e verifica i file. Le LoRA custom (`hmmotion_...`) vengono copiate dal pod se esistono.
 
 ## 2. Immagine worker
 
+Preferita: wrappa **la stessa immagine del template MiniMax** (`ls250824/run-comfyui-minimax`) così restano custom node, CUDA e ComfyUI che usi già nel Pod. Il provisioning GUI non parte: i pesi arrivano dal volume.
+
 ```bash
-docker build -t YOURUSER/minimax-h3-r2v:1.0 -f worker/Dockerfile .
+docker build -t YOURUSER/minimax-h3-r2v:1.0 -f worker/Dockerfile.template .
 docker push YOURUSER/minimax-h3-r2v:1.0
 ```
 
-L’immagine parte da `runpod/worker-comfyui:5.10.0-base` (ComfyUI 0.34, supporto nativo H3) e installa:
-
-- `ComfyUI-MiniMaxRefPack`
-- `ComfyUI-VideoHelperSuite`
-- `rgthree-comfy`
+Alternativa più piccola, senza lo stack GUI: `worker/Dockerfile` da `runpod/worker-comfyui:5.10.0-base` + MiniMaxRefPack, VHS, rgthree.
 
 I pesi **non** sono nell’immagine.
 
@@ -85,7 +83,7 @@ Schema e script: `airtable/SCHEMA.md` e `airtable/submit_job.js`.
 
 Campi: Prompt, Image, Video, Audio (opzionale), Duration, Aspect, Auto Prompt, Status, Output, Job ID, Errore.
 
-Inserisci una riga, metti `Status=Queued`. L’automazione chiama RunPod. Il worker riscrive il record a fine generazione.
+Inserisci una riga, metti `Status=Queued`. L’automazione manda solo l’id del record: il worker legge gli allegati (audio opzionale incluso) e riscrive il record a fine generazione.
 
 L’mp4 MiniMax supera i 5 MB: Airtable accetta allegati grandi solo da **URL pubblico**. Serve S3 o Cloudflare R2.
 

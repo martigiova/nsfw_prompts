@@ -25,6 +25,13 @@ def test_airtable_style_payload():
     assert job.airtable.record_id == "rec123"
 
 
+def test_airtable_record_id_only_is_allowed():
+    job, error = parse_job_input({"airtable_record_id": "recOnly"})
+    assert error is None
+    assert job.needs_hydrate() is True
+    assert job.airtable.record_id == "recOnly"
+
+
 def test_requires_prompt_and_media():
     job, error = parse_job_input({"prompt": "hi"})
     assert job is None

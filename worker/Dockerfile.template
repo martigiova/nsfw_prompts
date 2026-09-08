@@ -1,0 +1,29 @@
+# Wrap the GUI MiniMax template so the same ComfyUI stack answers RunPod /run.
+# Build: docker build -f worker/Dockerfile.template -t YOURUSER/minimax-h3-r2v:template .
+ARG BASE_IMAGE=ls250824/run-comfyui-minimax:latest
+FROM ${BASE_IMAGE}
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    WORKFLOW_PATH=/app/workflows/api_template.json \
+    COMFY_ROOT=/ComfyUI \
+    COMFY_INPUT_DIR=/ComfyUI/input \
+    COMFY_OUTPUT_DIR=/ComfyUI/output
+
+WORKDIR /ComfyUI/custom_nodes
+RUN git clone --depth 1 https://github.com/Hearmeman24/ComfyUI-MiniMaxRefPack.git \
+ && ( [ -f ComfyUI-MiniMaxRefPack/requirements.txt ] && python -m pip install --no-cache-dir -r ComfyUI-MiniMaxRefPack/requirements.txt || true )
+
+WORKDIR /
+COPY worker/extra_model_paths.yaml /ComfyUI/extra_model_paths.yaml
+COPY worker/extra_model_paths.yaml /app/worker/extra_model_paths.yaml
+COPY minimax_r2v /app/minimax_r2v
+COPY workflows /app/workflows
+COPY worker/handler.py /handler.py
+COPY worker/requirements.txt /app/requirements.txt
+COPY worker/start_template.sh /start-serverless.sh
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt \
+ && chmod +x /start-serverless.sh
+
+WORKDIR /app
+CMD ["/start-serverless.sh"]
