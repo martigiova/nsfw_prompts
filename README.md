@@ -2,7 +2,7 @@
 
 Il template [get.runpod.io/minimax-template](https://get.runpod.io/minimax-template) è un **Pod** con ComfyUI. Questo repo lo trasforma in un **endpoint serverless**: i pesi restano su un Network Volume, l’API accetta immagine / video / audio opzionale / prompt, e Airtable può lanciare i job.
 
-Senza SSH sul pod e senza `RUNPOD_API_KEY` non posso montare il volume sul tuo account né scaricare i ~56 GB di pesi da qui. Il codice è pronto: quando mi dai SSH RunPod + token Airtable + bucket S3/R2, il passo successivo è eseguirlo sul volume e creare l’endpoint.
+Senza SSH sul pod e senza `RUNPOD_API_KEY` non posso montare il volume sul tuo account né scaricare i ~56 GB di pesi da qui. Il codice è pronto: quando mi dai `RUNPOD_API_KEY` + id del volume (e opzionalmente token Airtable + bucket S3/R2), il passo successivo è `CONFIRM_BOOTSTRAP=1 python scripts/bootstrap_via_runpod.py` e poi creare l’endpoint.
 
 ## Architettura
 
@@ -36,9 +36,19 @@ Volume consigliato: **100–150 GB**, stessa regione dell’endpoint. GPU: RTX 4
 
 ## 1. Network volume (una volta)
 
-1. Crea un Network Volume nella regione dove girerà il serverless.
-2. Avvia il template MiniMax **con quel volume attaccato**.
-3. SSH sul pod e lancia:
+1. Crea un Network Volume (100–150 GB) nella regione dove girerà il serverless.
+2. Popolalo **senza SSH e senza GPU** (pod CPU, ~56 GB da Hugging Face):
+
+```bash
+export RUNPOD_API_KEY=...
+export RUNPOD_NETWORK_VOLUME_ID=...
+python scripts/deploy.py --check
+CONFIRM_BOOTSTRAP=1 python scripts/bootstrap_via_runpod.py
+```
+
+Il pod CPU clona questo repo, lancia `scripts/on_pod.sh`, verifica i file e si spegne.
+
+In alternativa, avvia il template MiniMax **con quel volume attaccato**, SSH, e:
 
 ```bash
 git clone <questo-repo> /workspace/nsfw_prompts
@@ -67,6 +77,7 @@ In console RunPod: template serverless con quell’immagine, Network Volume sele
 Oppure, con le env in `.env.example`:
 
 ```bash
+python scripts/deploy.py --check
 python scripts/provision_runpod.py
 ```
 
@@ -143,10 +154,9 @@ Nel workflow che hai caricato c’era una `openrouter_api_key` in chiaro. Ruotal
 
 ## Cosa mi serve per chiudere il deploy
 
-1. SSH (o `PUBLIC_KEY`) di un pod MiniMax con il Network Volume
-2. `RUNPOD_API_KEY` e id del volume
-3. Token Airtable + `baseId`
-4. Credenziali S3 o R2
-5. Registry Docker (Docker Hub / GHCR) dove pushare il worker
+1. `RUNPOD_API_KEY` e `RUNPOD_NETWORK_VOLUME_ID` (SSH non è più obbligatorio: il bootstrap gira su un pod CPU)
+2. Token Airtable + `baseId`
+3. Credenziali S3 o R2
+4. Registry Docker (Docker Hub / GHCR) dove pushare il worker
 
-A quel punto bootstrap pesi, build/push immagine, creazione endpoint e verifica di un job Airtable si fanno da qui.
+A quel punto: `CONFIRM_BOOTSTRAP=1 python scripts/bootstrap_via_runpod.py` → build/push `worker/Dockerfile.template` → `python scripts/provision_runpod.py` → incolla `airtable/submit_job.js`.

@@ -6,10 +6,8 @@ from __future__ import annotations
 import json
 import os
 import sys
-import urllib.error
-import urllib.request
 
-API = "https://rest.runpod.io/v1"
+from scripts.runpod_http import request
 
 # Exact enum values from POST /endpoints (wrong names are rejected).
 GPU_TYPE_IDS = [
@@ -18,28 +16,6 @@ GPU_TYPE_IDS = [
     "NVIDIA L40S",
     "NVIDIA A100 80GB PCIe",
 ]
-
-
-def request(method: str, path: str, payload: dict | None = None) -> dict:
-    api_key = os.environ.get("RUNPOD_API_KEY")
-    if not api_key:
-        raise SystemExit("Set RUNPOD_API_KEY")
-    data = None if payload is None else json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        f"{API}{path}",
-        data=data,
-        method=method,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"RunPod {exc.code} {method} {path}: {body}") from exc
 
 
 def worker_env() -> dict[str, str]:
