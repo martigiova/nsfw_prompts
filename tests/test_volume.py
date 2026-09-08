@@ -24,7 +24,8 @@ def test_missing_weights_on_empty_tree(tmp_path):
     ]
 
 
-def test_finds_required_weights(tmp_path):
+def test_finds_required_weights(tmp_path, monkeypatch):
+    monkeypatch.setattr("minimax_r2v.volume.expected_min_bytes", lambda rel: 1_000_000)
     models = tmp_path / "models"
     for rel in (
         "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
@@ -39,9 +40,9 @@ def test_finds_required_weights(tmp_path):
     assert found is not None
 
 
-def test_tiny_files_are_not_accepted(tmp_path):
+def test_two_megabyte_stub_is_not_a_real_vae(tmp_path):
     models = tmp_path / "models"
-    _touch_weight(models, "vae/minimax_h3_video_vae_fp16.safetensors", size=10)
+    _touch_weight(models, "vae/minimax_h3_video_vae_fp16.safetensors", size=2_000_000)
     assert find_weight("vae/minimax_h3_video_vae_fp16.safetensors", [models]) is None
 
 

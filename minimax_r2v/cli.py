@@ -10,6 +10,7 @@ from pathlib import Path
 
 import requests
 
+from minimax_r2v.download import download_weights
 from minimax_r2v.graph import assert_workflow_links
 from minimax_r2v.payload import parse_job_input
 from minimax_r2v.volume import missing_weights, volume_is_present
@@ -86,6 +87,11 @@ def check_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def download_cmd(args: argparse.Namespace) -> int:
+    download_weights(args.volume_root)
+    return 0
+
+
 def submit_cmd(args: argparse.Namespace) -> int:
     endpoint = os.environ.get("RUNPOD_ENDPOINT_ID") or args.endpoint
     api_key = os.environ.get("RUNPOD_API_KEY")
@@ -136,6 +142,10 @@ def main(argv: list[str] | None = None) -> int:
     check = sub.add_parser("check", help="Validate the API graph (and volume if mounted)")
     check.add_argument("--template", default="workflows/api_template.json")
     check.set_defaults(func=check_cmd)
+
+    download = sub.add_parser("download-weights", help="Download MiniMax H3 weights onto VOLUME_ROOT")
+    download.add_argument("--volume-root", default=None)
+    download.set_defaults(func=download_cmd)
 
     parsed = parser.parse_args(argv)
     return parsed.func(parsed)

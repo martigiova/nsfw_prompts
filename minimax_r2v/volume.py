@@ -5,16 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-REQUIRED = (
-    "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
-    "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
-    "vae/minimax_h3_video_vae_fp16.safetensors",
-    "vae/minimax_h3_audio_vae_fp32.safetensors",
-    "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
-)
-OPTIONAL = (
-    "loras/hmmotion_minimax-h3_epoch40.safetensors",
-)
+from .weights import OPTIONAL, REQUIRED, expected_min_bytes
 
 _SERVERLESS_ROOT = Path("/runpod-volume")
 
@@ -31,7 +22,6 @@ def model_roots() -> list[Path]:
             _SERVERLESS_ROOT / "ComfyUI" / "models",
         ]
     )
-    # Deduplicate while preserving order
     seen: set[Path] = set()
     unique: list[Path] = []
     for root in roots:
@@ -49,9 +39,10 @@ def volume_is_present() -> bool:
 
 
 def find_weight(rel: str, roots: list[Path] | None = None) -> Path | None:
+    needed = expected_min_bytes(rel)
     for root in roots if roots is not None else model_roots():
         candidate = root / rel
-        if candidate.is_file() and candidate.stat().st_size > 1_000_000:
+        if candidate.is_file() and candidate.stat().st_size >= needed:
             return candidate
     return None
 
@@ -71,5 +62,5 @@ def assert_weights_if_volume_present() -> None:
         raise RuntimeError(
             "Network volume is missing MiniMax H3 weights: "
             + ", ".join(missing)
-            + ". Run scripts/on_pod.sh on a Pod attached to this volume."
+            + ". Run scripts/bootstrap_via_runpod.py or scripts/on_pod.sh."
         )

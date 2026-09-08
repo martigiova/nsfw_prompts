@@ -28,6 +28,7 @@ def test_bootstrap_pod_is_cpu_with_volume(monkeypatch):
     monkeypatch.setenv("RUNPOD_NETWORK_VOLUME_ID", "vol_123")
     monkeypatch.setenv("GIT_REF", "cursor/minimax-runpod-serverless-9e74")
     body = pod_body()
+    assert body["imageName"] == "runpod/base:1.1.0-ubuntu2204"
     assert body["computeType"] == "CPU"
     assert body["networkVolumeId"] == "vol_123"
     assert body["volumeMountPath"] == "/workspace"

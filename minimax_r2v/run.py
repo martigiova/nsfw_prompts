@@ -52,6 +52,12 @@ def run_job(event: dict) -> dict:
 
         if airtable and record_id:
             airtable.mark_running(record_id, job_id)
+            if not s3_configured():
+                raise RuntimeError(
+                    "S3/R2 is required to attach MiniMax mp4s to Airtable. "
+                    "Set BUCKET_ENDPOINT_URL, BUCKET_NAME, BUCKET_ACCESS_KEY_ID, "
+                    "BUCKET_SECRET_ACCESS_KEY and BUCKET_PUBLIC_URL_PREFIX."
+                )
 
         assert_weights_if_volume_present()
 
@@ -113,19 +119,11 @@ def run_job(event: dict) -> dict:
             outputs.append(entry)
 
         if airtable and record_id:
-            if primary_url:
-                airtable.mark_done(record_id, primary_url, primary_name)
-            else:
-                airtable.patch(
-                    record_id,
-                    {
-                        airtable.status_field: "Done",
-                        airtable.error_field: (
-                            "Video generated but S3/R2 is not configured, "
-                            "so the mp4 could not be attached. Download it from the RunPod job."
-                        ),
-                    },
+            if not primary_url:
+                raise RuntimeError(
+                    "Video generated but S3/R2 did not return a public URL"
                 )
+            airtable.mark_done(record_id, primary_url, primary_name)
 
         result = {
             "prompt_id": prompt_id,

@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.runpod_http import request  # noqa: E402
 
-DEFAULT_IMAGE = "runpod/base:0.7.0"
+DEFAULT_IMAGE = "runpod/base:1.1.0-ubuntu2204"
 DEFAULT_REPO = "https://github.com/martigiova/nsfw_prompts.git"
 HEALTH_PORT = 8888
 

@@ -66,7 +66,13 @@ def test_run_job_hydrates_from_airtable(monkeypatch, tmp_path):
     monkeypatch.setenv("TMPDIR", str(tmp_path))
     monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
     monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
-    monkeypatch.delenv("BUCKET_ENDPOINT_URL", raising=False)
+    monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://s3.example")
+    monkeypatch.setenv("BUCKET_NAME", "minimax")
+    monkeypatch.setenv("BUCKET_ACCESS_KEY_ID", "id")
+    monkeypatch.setenv("BUCKET_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setenv("BUCKET_PUBLIC_URL_PREFIX", "https://cdn.example")
+
+    done = {}
 
     class FakeAirtable:
         enabled = True
@@ -80,8 +86,9 @@ def test_run_job_hydrates_from_airtable(monkeypatch, tmp_path):
         def mark_running(self, record_id, job_id):
             return None
 
-        def mark_done(self, *args, **kwargs):
-            return None
+        def mark_done(self, record_id, url, filename):
+            done["url"] = url
+            done["filename"] = filename
 
         def patch(self, *args, **kwargs):
             return {}
@@ -112,10 +119,15 @@ def test_run_job_hydrates_from_airtable(monkeypatch, tmp_path):
         lambda items, destination, timeout=120: _touch_media(items, tmp_path / "input"),
     )
     monkeypatch.setattr("minimax_r2v.run.ComfyClient", lambda host=None: FakeComfy())
+    monkeypatch.setattr(
+        "minimax_r2v.run.upload_file",
+        lambda path, key: "https://cdn.example/minimax-r2v/job-1/out.mp4",
+    )
 
     result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
     assert "error" not in result
     assert result["references"] == ["face.png", "clothes.png", "walk.mp4"]
+    assert done["url"].endswith("out.mp4")
 
 
 def test_run_job_fails_when_volume_is_empty(monkeypatch, tmp_path):
@@ -125,6 +137,8 @@ def test_run_job_fails_when_volume_is_empty(monkeypatch, tmp_path):
     monkeypatch.setenv("SKIP_VOLUME_CHECK", "0")
     monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
     monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://s3.example")
+    monkeypatch.setenv("BUCKET_NAME", "minimax")
 
     errors = {}
 
@@ -150,3 +164,32 @@ def test_run_job_fails_when_volume_is_empty(monkeypatch, tmp_path):
     assert "error" in result
     assert "Network volume" in result["error"]
     assert "minimax_h3" in errors["message"]
+
+
+def test_run_job_airtable_requires_s3(monkeypatch, tmp_path):
+    monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
+    monkeypatch.setenv("WORKFLOW_PATH", "workflows/api_template.json")
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.delenv("BUCKET_ENDPOINT_URL", raising=False)
+    monkeypatch.delenv("BUCKET_NAME", raising=False)
+
+    errors = {}
+
+    class FakeAirtable:
+        enabled = True
+
+        def get_record(self, record_id):
+            return {"id": record_id, "fields": AIRTABLE_FIELDS}
+
+        def mark_running(self, record_id, job_id):
+            return None
+
+        def mark_error(self, record_id, message):
+            errors["message"] = message
+
+    monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
+    result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
+    assert "S3/R2" in result["error"]
+    assert "S3/R2" in errors["message"]
