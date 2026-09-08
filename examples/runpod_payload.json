@@ -1,0 +1,13 @@
+{
+  "prompt": "The woman from <Picture 1> appears in the scene from <Video 1>, keeping her own face. One continuous shot, handheld, natural light.",
+  "images": [
+    "https://example.com/reference.png"
+  ],
+  "video": "https://example.com/reference.mp4",
+  "audio": null,
+  "duration": 8,
+  "aspect_ratio": "9:16",
+  "seed": 0,
+  "auto_prompt": false,
+  "airtable_record_id": "recXXXXXXXXXXXXXX"
+}
