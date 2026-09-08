@@ -17,3 +17,11 @@ def test_worker_env_sets_comfy_input_dir(monkeypatch):
     assert env["COMFY_WAIT_TIMEOUT"] == "1650"
     assert env["AIRTABLE_TOKEN"] == "tok"
     assert env["AIRTABLE_BASE_ID"] == "appX"
+
+
+def test_worker_env_copies_airtable_field_names(monkeypatch):
+    monkeypatch.setenv("AIRTABLE_STATUS_FIELD", "Stato")
+    monkeypatch.setenv("AIRTABLE_OUTPUT_FIELD", "Video")
+    env = worker_env()
+    assert env["AIRTABLE_STATUS_FIELD"] == "Stato"
+    assert env["AIRTABLE_OUTPUT_FIELD"] == "Video"

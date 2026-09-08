@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 from typing import Callable
 
@@ -22,6 +23,7 @@ def download_weights(
 
     root = Path(volume_root or os.environ.get("VOLUME_ROOT", "/workspace"))
     models = root / "models"
+    cache_dir = models / ".hf-cache"
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     saved: list[Path] = []
     for weight in REQUIRED_WEIGHTS:
@@ -38,10 +40,12 @@ def download_weights(
             repo_id=HF_REPO,
             filename=weight.repo_path,
             token=token,
-            local_dir=str(models / ".hf-tmp"),
+            cache_dir=str(cache_dir),
         )
         dest.parent.mkdir(parents=True, exist_ok=True)
-        Path(downloaded).replace(dest)
+        src = Path(downloaded).resolve()
+        if src != dest:
+            src.replace(dest)
         if not is_complete(dest, weight.rel):
             raise RuntimeError(
                 f"downloaded {dest} is too small "
@@ -49,8 +53,23 @@ def download_weights(
             )
         print(f"    -> {dest} ({dest.stat().st_size / 1e9:.1f} GB)")
         saved.append(dest)
+        # Hugging Face also stores a blob copy in cache_dir. Delete it after
+        # each file so a 100 GB volume can hold the ~56 GB weights.
+        _cleanup_hub_cache(root, models)
     _link_aliases(models)
+    _cleanup_hub_cache(root, models)
     return saved
+
+
+def _cleanup_hub_cache(volume_root: Path, models: Path) -> None:
+    for path in (
+        models / ".hf-cache",
+        models / ".hf-tmp",
+        volume_root / ".hf",
+        Path(os.environ.get("HF_HOME", "/nonexistent")),
+    ):
+        if path.exists() and path.name in {".hf-cache", ".hf-tmp", ".hf"}:
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def _link_aliases(models: Path) -> None:

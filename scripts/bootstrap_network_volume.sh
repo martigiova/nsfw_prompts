@@ -45,7 +45,7 @@ copy_if_found "HMNSFW_AIO_V2.safetensors" "${MODELS}/loras"
 copy_if_found "HMBreasts_085e0750_e40.safetensors" "${MODELS}/loras"
 copy_if_found "taeh3.safetensors" "${MODELS}/vae_approx"
 
-rm -rf "${MODELS}/.hf-tmp"
+rm -rf "${MODELS}/.hf-tmp" "${MODELS}/.hf-cache" "${VOLUME_ROOT}/.hf"
 
 echo
 echo "== Volume layout =="

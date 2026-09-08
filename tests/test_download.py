@@ -16,8 +16,8 @@ def test_truncated_file_is_incomplete(tmp_path):
 def test_download_replaces_truncated_and_links_aliases(tmp_path, monkeypatch):
     monkeypatch.setattr("minimax_r2v.download.expected_min_bytes", lambda rel: 50)
 
-    def fake_hub_download(repo_id, filename, token=None, local_dir=None):
-        dest = Path(local_dir) / Path(filename).name
+    def fake_hub_download(repo_id, filename, token=None, local_dir=None, cache_dir=None):
+        dest = Path(cache_dir or local_dir) / Path(filename).name
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(b"1" * 80)
         return str(dest)
@@ -30,3 +30,4 @@ def test_download_replaces_truncated_and_links_aliases(tmp_path, monkeypatch):
     assert len(saved) == 5
     assert all(path.stat().st_size >= 50 for path in saved)
     assert (tmp_path / "models" / "unet" / "minimax_h3_ref2va_pruned_int8_convrot.safetensors").is_symlink()
+    assert not (tmp_path / "models" / ".hf-cache").exists()

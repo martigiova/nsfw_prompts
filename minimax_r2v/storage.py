@@ -13,6 +13,11 @@ def s3_configured() -> bool:
         os.environ.get("BUCKET_ENDPOINT_URL")
         and os.environ.get("BUCKET_NAME")
         and os.environ.get("BUCKET_PUBLIC_URL_PREFIX")
+        and (os.environ.get("BUCKET_ACCESS_KEY_ID") or os.environ.get("BUCKET_ACCESS_KEY"))
+        and (
+            os.environ.get("BUCKET_SECRET_ACCESS_KEY")
+            or os.environ.get("BUCKET_SECRET_KEY")
+        )
     )
 
 
@@ -34,11 +39,12 @@ def upload_file(path: str | Path, key: str) -> str:
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(path)
-        if not s3_configured():
-            raise RuntimeError(
-                "S3/R2 is not configured. Set BUCKET_ENDPOINT_URL, BUCKET_NAME, "
-                "and BUCKET_PUBLIC_URL_PREFIX so Airtable can fetch the mp4."
-            )
+    if not s3_configured():
+        raise RuntimeError(
+            "S3/R2 is not configured. Set BUCKET_ENDPOINT_URL, BUCKET_NAME, "
+            "BUCKET_ACCESS_KEY_ID, BUCKET_SECRET_ACCESS_KEY and "
+            "BUCKET_PUBLIC_URL_PREFIX so Airtable can fetch the mp4."
+        )
 
     try:
         import boto3

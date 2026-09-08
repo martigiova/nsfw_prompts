@@ -1,5 +1,14 @@
-from scripts.bootstrap_via_runpod import pod_body, start_command
+from pathlib import Path
+
+from scripts.bootstrap_via_runpod import (
+    BOOTSTRAP_SCRIPT,
+    interpret_status,
+    pod_body,
+    start_command,
+    start_entrypoint,
+)
 from scripts.deploy import check
+from scripts.provision_runpod import endpoint_body, template_body
 
 
 def test_check_reports_missing_groups(monkeypatch, capsys):
@@ -32,8 +41,58 @@ def test_bootstrap_pod_is_cpu_with_volume(monkeypatch):
     assert body["computeType"] == "CPU"
     assert body["networkVolumeId"] == "vol_123"
     assert body["volumeMountPath"] == "/workspace"
+    assert body["dockerEntrypoint"] == start_entrypoint()
     assert body["dockerStartCmd"] == start_command()
-    script = body["dockerStartCmd"][2]
+    script = body["dockerStartCmd"][0]
     assert "scripts/on_pod.sh" in script
     assert "validate_volume.py" in script
+    assert "write_status error" in script
     assert body["env"]["GIT_REF"] == "cursor/minimax-runpod-serverless-9e74"
+    assert "dataCenterIds" not in body
+
+
+def test_bootstrap_pins_volume_datacenter(monkeypatch):
+    monkeypatch.setenv("RUNPOD_NETWORK_VOLUME_ID", "vol_123")
+    monkeypatch.setenv("RUNPOD_API_KEY", "k")
+    monkeypatch.setattr(
+        "scripts.bootstrap_via_runpod.resolve_data_center",
+        lambda volume_id: "US-KS-2",
+    )
+    body = pod_body()
+    assert body["dataCenterIds"] == ["US-KS-2"]
+
+
+def test_bootstrap_script_serves_error_status():
+    assert "trap" in BOOTSTRAP_SCRIPT
+    assert "write_status error" in BOOTSTRAP_SCRIPT
+    assert "write_status ok" in BOOTSTRAP_SCRIPT
+
+
+def test_interpret_status_fails_fast_on_exited_pod():
+    assert interpret_status({"state": "ok"}, None) == "ok"
+    assert interpret_status({"state": "error", "message": "boom"}, None) == "error"
+    assert interpret_status(None, {"desiredStatus": "EXITED"}) == "error"
+    assert interpret_status(None, {"desiredStatus": "RUNNING"}) == "wait"
+
+
+def test_template_overrides_gui_entrypoint():
+    body = template_body("me/minimax-h3-r2v:1.0")
+    assert body["dockerEntrypoint"] == ["/start-serverless.sh"]
+    assert body["dockerStartCmd"] == []
+
+
+def test_on_pod_does_not_ignore_missing_weights():
+    text = Path("scripts/on_pod.sh").read_text(encoding="utf-8")
+    assert "validate_volume.py" in text
+    assert "validate_volume.py || true" not in text
+
+
+def test_endpoint_pins_volume_datacenter(monkeypatch):
+    monkeypatch.setenv("RUNPOD_API_KEY", "k")
+    monkeypatch.setattr(
+        "scripts.provision_runpod.resolve_data_center",
+        lambda volume_id: "EU-RO-1",
+    )
+    body = endpoint_body("tpl_1", "vol_123")
+    assert body["networkVolumeId"] == "vol_123"
+    assert body["dataCenterIds"] == ["EU-RO-1"]

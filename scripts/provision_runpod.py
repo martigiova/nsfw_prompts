@@ -7,7 +7,7 @@ import json
 import os
 import sys
 
-from scripts.runpod_http import request
+from scripts.runpod_http import request, resolve_data_center
 
 # Exact enum values from POST /endpoints (wrong names are rejected).
 GPU_TYPE_IDS = [
@@ -27,6 +27,17 @@ def worker_env() -> dict[str, str]:
         "AIRTABLE_TOKEN",
         "AIRTABLE_BASE_ID",
         "AIRTABLE_TABLE_NAME",
+        "AIRTABLE_PROMPT_FIELD",
+        "AIRTABLE_IMAGE_FIELD",
+        "AIRTABLE_VIDEO_FIELD",
+        "AIRTABLE_AUDIO_FIELD",
+        "AIRTABLE_DURATION_FIELD",
+        "AIRTABLE_ASPECT_FIELD",
+        "AIRTABLE_AUTO_PROMPT_FIELD",
+        "AIRTABLE_STATUS_FIELD",
+        "AIRTABLE_OUTPUT_FIELD",
+        "AIRTABLE_ERROR_FIELD",
+        "AIRTABLE_JOB_ID_FIELD",
         "BUCKET_ENDPOINT_URL",
         "BUCKET_ACCESS_KEY_ID",
         "BUCKET_SECRET_ACCESS_KEY",
@@ -56,40 +67,24 @@ def worker_env() -> dict[str, str]:
     return env
 
 
-def main() -> int:
-    image = os.environ.get("DOCKER_IMAGE")
-    volume = os.environ.get("RUNPOD_NETWORK_VOLUME_ID")
-    if not image:
-        print("Set DOCKER_IMAGE to your pushed worker image", file=sys.stderr)
-        return 1
-    if not volume:
-        print(
-            "Warning: RUNPOD_NETWORK_VOLUME_ID is empty. "
-            "The endpoint will start without MiniMax weights.",
-            file=sys.stderr,
-        )
+def template_body(image: str) -> dict:
+    return {
+        "name": os.environ.get("RUNPOD_TEMPLATE_NAME", "minimax-h3-r2v-worker"),
+        "imageName": image,
+        "isServerless": True,
+        "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "40")),
+        "volumeInGb": 0,
+        "volumeMountPath": "/runpod-volume",
+        # Override the GUI image ENTRYPOINT; dockerStartCmd alone becomes
+        # arguments to /start.sh and the handler never starts.
+        "dockerEntrypoint": ["/start-serverless.sh"],
+        "dockerStartCmd": [],
+        "env": worker_env(),
+    }
 
-    template = request(
-        "POST",
-        "/templates",
-        {
-            "name": os.environ.get("RUNPOD_TEMPLATE_NAME", "minimax-h3-r2v-worker"),
-            "imageName": image,
-            "isServerless": True,
-            "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "40")),
-            "volumeInGb": 0,
-            "volumeMountPath": "/runpod-volume",
-            "dockerStartCmd": ["/start-serverless.sh"],
-            "env": worker_env(),
-        },
-    )
-    print("Template:", json.dumps(template, indent=2))
-    template_id = template.get("id") or template.get("templateId")
-    if not template_id:
-        print("Could not read template id from response", file=sys.stderr)
-        return 1
 
-    endpoint_body = {
+def endpoint_body(template_id: str, volume: str) -> dict:
+    body = {
         "name": os.environ.get("RUNPOD_ENDPOINT_NAME", "minimax-h3-r2v"),
         "templateId": template_id,
         "gpuTypeIds": GPU_TYPE_IDS,
@@ -103,9 +98,34 @@ def main() -> int:
         "flashboot": True,
     }
     if volume:
-        endpoint_body["networkVolumeId"] = volume
+        body["networkVolumeId"] = volume
+        data_center = resolve_data_center(volume)
+        if data_center:
+            body["dataCenterIds"] = [data_center]
+    return body
 
-    endpoint = request("POST", "/endpoints", endpoint_body)
+
+def main() -> int:
+    image = os.environ.get("DOCKER_IMAGE")
+    volume = os.environ.get("RUNPOD_NETWORK_VOLUME_ID")
+    if not image:
+        print("Set DOCKER_IMAGE to your pushed worker image", file=sys.stderr)
+        return 1
+    if not volume:
+        print(
+            "Warning: RUNPOD_NETWORK_VOLUME_ID is empty. "
+            "The endpoint will start without MiniMax weights.",
+            file=sys.stderr,
+        )
+
+    template = request("POST", "/templates", template_body(image))
+    print("Template:", json.dumps(template, indent=2))
+    template_id = template.get("id") or template.get("templateId")
+    if not template_id:
+        print("Could not read template id from response", file=sys.stderr)
+        return 1
+
+    endpoint = request("POST", "/endpoints", endpoint_body(template_id, volume or ""))
     print("Endpoint:", json.dumps(endpoint, indent=2))
     endpoint_id = endpoint.get("id") or endpoint.get("endpointId")
     if endpoint_id:

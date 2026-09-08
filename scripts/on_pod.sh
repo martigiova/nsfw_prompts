@@ -10,7 +10,7 @@ if [[ -d "${VOLUME_ROOT}/ComfyUI/models" ]] || [[ -d "${VOLUME_ROOT}/runpod-slim
   bash "${ROOT}/scripts/link_pod_models.sh" || true
 fi
 
-python3 "${ROOT}/scripts/validate_volume.py" || true
+python3 "${ROOT}/scripts/validate_volume.py"
 echo
 echo "Volume ready. Next:"
 echo "  1. Stop this pod (keep the volume)."

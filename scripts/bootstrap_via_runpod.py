@@ -19,31 +19,58 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.runpod_http import request  # noqa: E402
+from scripts.runpod_http import request, resolve_data_center  # noqa: E402
 
 DEFAULT_IMAGE = "runpod/base:1.1.0-ubuntu2204"
 DEFAULT_REPO = "https://github.com/martigiova/nsfw_prompts.git"
 HEALTH_PORT = 8888
+TERMINAL_POD_STATUS = {"EXITED", "TERMINATED", "DEAD", "FAILED"}
 
-BOOTSTRAP_SCRIPT = f"""set -euo pipefail
+BOOTSTRAP_SCRIPT = r"""set -euo pipefail
 export VOLUME_ROOT=/workspace
 export HF_HOME=/workspace/.hf
-mkdir -p /workspace /var/minimax-bootstrap
-printf '%s\\n' '{{"state":"starting"}}' > /var/minimax-bootstrap/status.json
+STATUS_DIR=/var/minimax-bootstrap
+mkdir -p /workspace "$STATUS_DIR"
+write_status() {
+  python3 -c 'import json,sys; print(json.dumps({"state":sys.argv[1],"message":sys.argv[2][:2000]}))' "$1" "${2:-}" > "$STATUS_DIR/status.json"
+}
+serve() {
+  exec python3 -m http.server 8888 --bind 0.0.0.0 --directory "$STATUS_DIR"
+}
+write_status starting "installing tools"
+trap 'write_status error "bootstrap failed at line $LINENO"; serve' ERR
 apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y git git-lfs python3-pip
-git clone --depth 1 --branch "${{GIT_REF}}" "${{REPO_URL}}" /tmp/nsfw_prompts \\
+git clone --depth 1 --branch "${GIT_REF}" "${REPO_URL}" /tmp/nsfw_prompts \
   || git clone --depth 1 "$REPO_URL" /tmp/nsfw_prompts
 bash /tmp/nsfw_prompts/scripts/on_pod.sh
 python3 /tmp/nsfw_prompts/scripts/validate_volume.py
-printf 'ok\\n' > /workspace/minimax-bootstrap.ok
-printf '%s\\n' '{{"state":"ok"}}' > /var/minimax-bootstrap/status.json
-python3 -m http.server {HEALTH_PORT} --bind 0.0.0.0 --directory /var/minimax-bootstrap
+rm -rf /workspace/.hf /workspace/models/.hf-cache /workspace/models/.hf-tmp
+printf 'ok\n' > /workspace/minimax-bootstrap.ok
+write_status ok "weights ready"
+serve
 """
 
 
 def start_command() -> list[str]:
-    return ["bash", "-lc", BOOTSTRAP_SCRIPT]
+    return [BOOTSTRAP_SCRIPT]
+
+
+def start_entrypoint() -> list[str]:
+    return ["/bin/bash", "-lc"]
+
+
+def interpret_status(status: dict | None, pod: dict | None) -> str:
+    """Return 'ok', 'error', or 'wait'."""
+    if status and status.get("state") == "ok":
+        return "ok"
+    if status and status.get("state") == "error":
+        return "error"
+    if pod:
+        desired = str(pod.get("desiredStatus") or pod.get("desired_status") or "").upper()
+        if desired in TERMINAL_POD_STATUS:
+            return "error"
+    return "wait"
 
 
 def pod_body() -> dict:
@@ -52,11 +79,12 @@ def pod_body() -> dict:
         raise SystemExit("Set RUNPOD_NETWORK_VOLUME_ID")
     repo = os.environ.get("BOOTSTRAP_REPO", DEFAULT_REPO)
     git_ref = os.environ.get("GIT_REF", "cursor/minimax-runpod-serverless-9e74")
-    return {
+    body = {
         "name": os.environ.get("BOOTSTRAP_POD_NAME", "minimax-h3-volume-bootstrap"),
         "imageName": os.environ.get("BOOTSTRAP_IMAGE", DEFAULT_IMAGE),
         "computeType": "CPU",
         "cpuFlavorIds": ["cpu3g", "cpu5g", "cpu3c"],
+        "vcpuCount": int(os.environ.get("BOOTSTRAP_VCPU", "4")),
         "cloudType": os.environ.get("BOOTSTRAP_CLOUD", "SECURE"),
         "containerDiskInGb": int(os.environ.get("BOOTSTRAP_DISK_GB", "20")),
         "volumeInGb": 0,
@@ -69,30 +97,50 @@ def pod_body() -> dict:
             "REPO_URL": repo,
             "GIT_REF": git_ref,
         },
+        "dockerEntrypoint": start_entrypoint(),
         "dockerStartCmd": start_command(),
     }
-
+    data_center = resolve_data_center(volume)
+    if data_center:
+        body["dataCenterIds"] = [data_center]
+    return body
 
 
 def _proxy_url(pod_id: str) -> str:
     return f"https://{pod_id}-{HEALTH_PORT}.proxy.runpod.net/status.json"
 
 
+def _read_status(pod_id: str) -> dict | None:
+    url = _proxy_url(pod_id)
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            return json.loads(response.read().decode("utf-8", errors="replace"))
+    except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, ValueError):
+        return None
+
+
+def _read_pod(pod_id: str) -> dict | None:
+    try:
+        return request("GET", f"/pods/{pod_id}")
+    except SystemExit:
+        return None
+
+
 def wait_until_ok(pod_id: str, timeout: int = 7200) -> None:
     deadline = time.time() + timeout
     last = ""
     while time.time() < deadline:
-        url = _proxy_url(pod_id)
-        try:
-            with urllib.request.urlopen(url, timeout=10) as response:
-                last = response.read().decode("utf-8", errors="replace")
-                data = json.loads(last)
-                if data.get("state") == "ok":
-                    print("Volume bootstrap finished:", last)
-                    return
-        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError) as exc:
-            last = str(exc)
-        print("waiting for weights download...", last[:200])
+        status = _read_status(pod_id)
+        pod = _read_pod(pod_id)
+        decision = interpret_status(status, pod)
+        last = json.dumps(status or pod or {}, default=str)[:200]
+        if decision == "ok":
+            print("Volume bootstrap finished:", last)
+            return
+        if decision == "error":
+            message = (status or {}).get("message") if status else last
+            raise SystemExit(f"Volume bootstrap failed on {pod_id}: {message}")
+        print("waiting for weights download...", last)
         time.sleep(20)
     raise SystemExit(f"Timed out waiting for volume bootstrap on {pod_id}: {last}")
 

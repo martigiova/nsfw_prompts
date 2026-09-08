@@ -17,10 +17,10 @@ class AirtableClient:
         token: str | None = None,
         base_id: str | None = None,
         table: str | None = None,
-        status_field: str = "Status",
-        output_field: str = "Output",
-        error_field: str = "Errore",
-        job_id_field: str = "Job ID",
+        status_field: str | None = None,
+        output_field: str | None = None,
+        error_field: str | None = None,
+        job_id_field: str | None = None,
     ) -> None:
         self.token = token or os.environ.get("AIRTABLE_TOKEN", "")
         self.base_id = base_id or os.environ.get("AIRTABLE_BASE_ID", "")

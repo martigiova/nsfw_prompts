@@ -4,6 +4,8 @@ Il template [get.runpod.io/minimax-template](https://get.runpod.io/minimax-templ
 
 Senza SSH sul pod e senza `RUNPOD_API_KEY` non posso montare il volume sul tuo account né scaricare i ~56 GB di pesi da qui. Il codice è pronto: quando mi dai `RUNPOD_API_KEY` + id del volume (e opzionalmente token Airtable + bucket S3/R2), il passo successivo è `CONFIRM_BOOTSTRAP=1 python scripts/bootstrap_via_runpod.py` e poi creare l’endpoint.
 
+Il pod CPU di bootstrap viene creato **nella stessa data center del volume**. Lo script scrive `status.json` anche se il download fallisce, così non resta acceso 2 ore in silenzio.
+
 ## Architettura
 
 ```
@@ -59,7 +61,7 @@ bash /workspace/nsfw_prompts/scripts/on_pod.sh
 
 ## 2. Immagine worker
 
-Preferita: wrappa **la stessa immagine del template MiniMax** (`ls250824/run-comfyui-minimax`) così restano custom node, CUDA e ComfyUI che usi già nel Pod. Il provisioning GUI non parte: i pesi arrivano dal volume.
+Preferita: wrappa **la stessa immagine del template MiniMax** (`ls250824/run-comfyui-minimax:08092026` — su Docker Hub **non esiste** `:latest`, solo tag data). Il provisioning GUI non parte: i pesi arrivano dal volume. Il Dockerfile **sovrascrive l’ENTRYPOINT** dell’immagine GUI, altrimenti RunPod avvia `/start.sh` e l’handler `/run` non parte.
 
 ```bash
 docker build -t YOURUSER/minimax-h3-r2v:1.0 -f worker/Dockerfile.template .
@@ -81,7 +83,7 @@ python scripts/deploy.py --check
 python scripts/provision_runpod.py
 ```
 
-`provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA GeForce RTX 4090`, non `NVIDIA RTX 4090`). Env obbligatorie sull’endpoint:
+`provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA GeForce RTX 4090`, non `NVIDIA RTX 4090`) e attacca l’endpoint alla **stessa data center del Network Volume**. Env obbligatorie sull’endpoint:
 
 - `AIRTABLE_TOKEN`, `AIRTABLE_BASE_ID`
 - `BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`, `BUCKET_NAME`, `BUCKET_PUBLIC_URL_PREFIX`

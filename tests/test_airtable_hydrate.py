@@ -140,6 +140,8 @@ def test_run_job_fails_when_volume_is_empty(monkeypatch, tmp_path):
     monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://s3.example")
     monkeypatch.setenv("BUCKET_NAME", "minimax")
     monkeypatch.setenv("BUCKET_PUBLIC_URL_PREFIX", "https://cdn.example")
+    monkeypatch.setenv("BUCKET_ACCESS_KEY_ID", "id")
+    monkeypatch.setenv("BUCKET_SECRET_ACCESS_KEY", "secret")
 
     errors = {}
 
