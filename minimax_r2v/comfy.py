@@ -42,6 +42,9 @@ class ComfyClient:
         data = response.json()
         if "error" in data:
             raise RuntimeError(f"ComfyUI rejected the prompt: {data['error']}")
+        node_errors = data.get("node_errors") or {}
+        if node_errors:
+            raise RuntimeError(f"ComfyUI node_errors: {node_errors}")
         prompt_id = data.get("prompt_id")
         if not prompt_id:
             raise RuntimeError(f"ComfyUI did not return prompt_id: {data}")
@@ -54,9 +57,12 @@ class ComfyClient:
             if prompt_id in history:
                 entry = history[prompt_id]
                 status = entry.get("status") or {}
-                if status.get("status_str") == "error" or status.get("completed") is False and status.get("messages"):
-                    messages = status.get("messages") or []
+                messages = status.get("messages") or []
+                if status.get("status_str") == "error":
                     raise RuntimeError(f"ComfyUI execution failed: {messages}")
+                for msg in messages:
+                    if isinstance(msg, (list, tuple)) and msg and msg[0] == "execution_error":
+                        raise RuntimeError(f"ComfyUI execution failed: {msg}")
                 if entry.get("outputs") or status.get("completed"):
                     return entry
             time.sleep(poll_interval)

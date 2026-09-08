@@ -52,8 +52,14 @@ def test_run_job_happy_path(monkeypatch, tmp_path):
 
     def fake_download(items, destination, timeout=120):
         downloaded.append([item.filename for item in items])
-        (tmp_path / "input").mkdir(parents=True, exist_ok=True)
-        return [(item, item.filename or f"{item.kind}.bin") for item in items]
+        dest = tmp_path / "input"
+        dest.mkdir(parents=True, exist_ok=True)
+        saved = []
+        for item in items:
+            name = item.filename or f"{item.kind}.bin"
+            (dest / name).write_bytes(b"x")
+            saved.append((item, name))
+        return saved
 
     class FakeComfy:
         def wait_until_ready(self):

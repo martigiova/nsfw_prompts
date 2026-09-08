@@ -206,13 +206,27 @@ def apply_airtable_fields(job: JobRequest, fields: dict[str, Any]) -> JobRequest
     aspect_field = os.environ.get("AIRTABLE_ASPECT_FIELD", "Aspect")
     auto_field = os.environ.get("AIRTABLE_AUTO_PROMPT_FIELD", "Auto Prompt")
 
-    prompt = job.prompt.strip() or str(_first_field(fields, prompt_field, "prompt", "Direction") or "").strip()
-    images = job.images or _media_list(_first_field(fields, image_field, "Images", "image"), "image", 9)
-    videos = job.videos or _media_list(_first_field(fields, video_field, "Videos", "video"), "video", 3)
-    audios = job.audios or _media_list(_first_field(fields, audio_field, "Audios", "audio"), "audio", 3)
-    duration_raw = _first_field(fields, duration_field, "duration", "length_seconds")
-    aspect_raw = _first_field(fields, aspect_field, "aspect_ratio", "Aspect Ratio")
-    auto_raw = _first_field(fields, auto_field, "auto_prompt")
+    prompt = job.prompt.strip() or str(
+        _first_field(fields, prompt_field, "prompt", "Direction") or ""
+    ).strip()
+    images = job.images or _media_list(
+        _first_field(fields, image_field, "Images", "image", "Immagine", "Immagini", "Foto"),
+        "image",
+        9,
+    )
+    videos = job.videos or _media_list(
+        _first_field(fields, video_field, "Videos", "video"),
+        "video",
+        3,
+    )
+    audios = job.audios or _media_list(
+        _first_field(fields, audio_field, "Audios", "audio"),
+        "audio",
+        3,
+    )
+    duration_raw = _first_field(fields, duration_field, "duration", "length_seconds", "Durata")
+    aspect_raw = _first_field(fields, aspect_field, "aspect_ratio", "Aspect Ratio", "Rapporto")
+    auto_raw = _first_field(fields, auto_field, "auto_prompt", "Auto Prompt", "Prompt automatico")
 
     duration = job.duration
     if duration_raw not in (None, "") and job.duration == 8.0:

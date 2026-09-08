@@ -2,6 +2,16 @@ from minimax_r2v.payload import apply_airtable_fields, parse_job_input
 from minimax_r2v.run import run_job
 
 
+def _touch_media(items, dest):
+    dest.mkdir(parents=True, exist_ok=True)
+    saved = []
+    for item in items:
+        name = item.filename or f"{item.kind}.bin"
+        (dest / name).write_bytes(b"x")
+        saved.append((item, name))
+    return saved
+
+
 AIRTABLE_FIELDS = {
     "Prompt": "The woman from <Picture 1> walks like <Video 1>",
     "Image": [
@@ -24,6 +34,20 @@ def test_hydrate_fills_prompt_images_video_without_audio():
     assert [item.filename for item in filled.images] == ["face.png", "clothes.png"]
     assert filled.videos[0].filename == "walk.mp4"
     assert filled.audios == []
+
+
+def test_hydrate_italian_image_field():
+    job, _ = parse_job_input({"airtable_record_id": "rec1"})
+    filled = apply_airtable_fields(
+        job,
+        {
+            "Prompt": "ciao",
+            "Immagine": [{"url": "https://x/a.png", "filename": "a.png"}],
+            "Video": [{"url": "https://x/v.mp4", "filename": "v.mp4"}],
+        },
+    )
+    assert filled.images[0].filename == "a.png"
+    assert filled.needs_hydrate() is False
 
 
 def test_hydrate_optional_audio():
@@ -84,7 +108,7 @@ def test_run_job_hydrates_from_airtable(monkeypatch, tmp_path):
     monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
     monkeypatch.setattr(
         "minimax_r2v.run.download_media",
-        lambda items, destination, timeout=120: [(item, item.filename) for item in items],
+        lambda items, destination, timeout=120: _touch_media(items, tmp_path / "input"),
     )
     monkeypatch.setattr("minimax_r2v.run.ComfyClient", lambda host=None: FakeComfy())
 

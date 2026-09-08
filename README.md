@@ -58,7 +58,7 @@ docker push YOURUSER/minimax-h3-r2v:1.0
 
 Alternativa più piccola, senza lo stack GUI: `worker/Dockerfile` da `runpod/worker-comfyui:5.10.0-base` + MiniMaxRefPack, VHS, rgthree.
 
-I pesi **non** sono nell’immagine.
+Il node `MiniMaxH3ReferencePack` risolve i file con `os.path.join(input_dir, filename)` dove `input_dir` è la cartella input di ComfyUI, non il volume. Il worker scarica gli allegati Airtable lì (`/ComfyUI/input` sul template, `/comfyui/input` su worker-comfyui).
 
 ## 3. Endpoint serverless
 

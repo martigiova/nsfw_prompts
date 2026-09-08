@@ -9,6 +9,7 @@ from pathlib import Path
 from .airtable import AirtableClient
 from .comfy import ComfyClient
 from .media import download_media
+from .loras import lora_search_dirs
 from .payload import JobRequest, apply_airtable_fields, parse_job_input, references_manifest
 from .storage import s3_configured, upload_file
 from .workflow import build_workflow
@@ -53,6 +54,12 @@ def run_job(event: dict) -> dict:
         saved: list = []
         if not job.workflow:
             saved = download_media(job.all_media(), input_dir)
+            missing = [name for _, name in saved if not (input_dir / name).is_file()]
+            if missing:
+                raise RuntimeError(
+                    "reference file(s) not found in the ComfyUI input directory: "
+                    + ", ".join(missing)
+                )
             references = references_manifest(saved)
             workflow = build_workflow(
                 job,
@@ -64,6 +71,7 @@ def run_job(event: dict) -> dict:
                 ),
                 motion_lora_name=os.environ.get("MOTION_LORA_NAME"),
                 skip_motion_lora=os.environ.get("SKIP_MOTION_LORA", "0") == "1",
+                lora_search_dirs=lora_search_dirs(),
             )
         else:
             workflow = job.workflow

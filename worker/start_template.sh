@@ -13,26 +13,23 @@ if [[ ! -f "${COMFY_ROOT}/main.py" ]]; then
   exit 1
 fi
 
-mkdir -p "${COMFY_ROOT}/input" "${COMFY_ROOT}/output"
-if [[ -d /runpod-volume/ComfyUI/input ]]; then
-  export COMFY_INPUT_DIR="${COMFY_INPUT_DIR:-/runpod-volume/ComfyUI/input}"
-else
-  export COMFY_INPUT_DIR="${COMFY_INPUT_DIR:-${COMFY_ROOT}/input}"
-fi
-mkdir -p "${COMFY_INPUT_DIR}"
+# MiniMaxH3ReferencePack joins references_json filenames with
+# folder_paths.get_input_directory(). That is THIS process's input folder,
+# not /runpod-volume/ComfyUI/input. Keep them identical.
+export COMFY_INPUT_DIR="${COMFY_INPUT_DIR:-${COMFY_ROOT}/input}"
+mkdir -p "${COMFY_INPUT_DIR}" "${COMFY_ROOT}/output"
 
 if [[ -f /app/worker/extra_model_paths.yaml ]]; then
   cp /app/worker/extra_model_paths.yaml "${COMFY_ROOT}/extra_model_paths.yaml"
-elif [[ -f /ComfyUI/extra_model_paths.yaml ]]; then
-  :
 fi
 
-echo "minimax-r2v: starting ComfyUI from ${COMFY_ROOT}"
+echo "minimax-r2v: starting ComfyUI from ${COMFY_ROOT} input=${COMFY_INPUT_DIR}"
 python "${COMFY_ROOT}/main.py" \
   --listen 127.0.0.1 \
   --port 8188 \
   --disable-auto-launch \
   --disable-metadata \
+  --input-directory "${COMFY_INPUT_DIR}" \
   --verbose INFO \
   --log-stdout &
 echo $! > /tmp/comfyui.pid

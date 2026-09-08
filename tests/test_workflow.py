@@ -74,4 +74,18 @@ def test_keeps_motion_lora_when_named():
     )
     assert workflow["137"]["inputs"]["lora_7"]["lora"] == "hmmotion_minimax-h3_epoch40.safetensors"
     assert workflow["137"]["inputs"]["lora_7"]["on"] is True
-    assert workflow["137"]["inputs"]["lora_1"]["on"] is False
+    assert "lora_1" not in workflow["137"]["inputs"]
+
+
+def test_strips_disabled_loras_and_bypasses_if_file_missing(tmp_path):
+    job = _job()
+    workflow = build_workflow(
+        job,
+        [{"kind": "image", "file": "a.png"}],
+        template_path=TEMPLATE,
+        motion_lora_name="hmmotion_minimax-h3_epoch40.safetensors",
+        skip_motion_lora=False,
+        lora_search_dirs=[tmp_path],
+    )
+    assert LORA_NODE not in workflow
+    assert workflow[TURBO_NODE]["inputs"]["model"] == [UNET_NODE, 0]
