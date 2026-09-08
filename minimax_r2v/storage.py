@@ -8,16 +8,22 @@ from urllib.parse import quote
 
 
 def s3_configured() -> bool:
-    return bool(os.environ.get("BUCKET_ENDPOINT_URL") and os.environ.get("BUCKET_NAME"))
+    """True when we can upload AND return a URL Airtable can GET without auth."""
+    return bool(
+        os.environ.get("BUCKET_ENDPOINT_URL")
+        and os.environ.get("BUCKET_NAME")
+        and os.environ.get("BUCKET_PUBLIC_URL_PREFIX")
+    )
 
 
 def public_url(key: str) -> str:
     prefix = os.environ.get("BUCKET_PUBLIC_URL_PREFIX", "").rstrip("/")
-    if prefix:
-        return f"{prefix}/{quote(key)}"
-    endpoint = os.environ.get("BUCKET_ENDPOINT_URL", "").rstrip("/")
-    bucket = os.environ.get("BUCKET_NAME", "")
-    return f"{endpoint}/{bucket}/{quote(key)}"
+    if not prefix:
+        raise RuntimeError(
+            "Set BUCKET_PUBLIC_URL_PREFIX to a public HTTPS origin "
+            "(R2 custom domain or S3 website/CDN). The S3 API endpoint is not fetchable by Airtable."
+        )
+    return f"{prefix}/{quote(key, safe='/')}"
 
 
 def upload_file(path: str | Path, key: str) -> str:
@@ -28,11 +34,11 @@ def upload_file(path: str | Path, key: str) -> str:
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(path)
-    if not s3_configured():
-        raise RuntimeError(
-            "S3/R2 is not configured. Set BUCKET_ENDPOINT_URL and BUCKET_NAME "
-            "so the worker can give Airtable a public URL for the mp4."
-        )
+        if not s3_configured():
+            raise RuntimeError(
+                "S3/R2 is not configured. Set BUCKET_ENDPOINT_URL, BUCKET_NAME, "
+                "and BUCKET_PUBLIC_URL_PREFIX so Airtable can fetch the mp4."
+            )
 
     try:
         import boto3

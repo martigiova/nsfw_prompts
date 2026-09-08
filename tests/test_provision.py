@@ -14,5 +14,6 @@ def test_worker_env_sets_comfy_input_dir(monkeypatch):
     env = worker_env()
     assert env["COMFY_INPUT_DIR"] == "/ComfyUI/input"
     assert env["COMFY_ROOT"] == "/ComfyUI"
+    assert env["COMFY_WAIT_TIMEOUT"] == "1650"
     assert env["AIRTABLE_TOKEN"] == "tok"
     assert env["AIRTABLE_BASE_ID"] == "appX"

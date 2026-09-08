@@ -139,6 +139,7 @@ def test_run_job_fails_when_volume_is_empty(monkeypatch, tmp_path):
     monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
     monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://s3.example")
     monkeypatch.setenv("BUCKET_NAME", "minimax")
+    monkeypatch.setenv("BUCKET_PUBLIC_URL_PREFIX", "https://cdn.example")
 
     errors = {}
 
@@ -193,3 +194,32 @@ def test_run_job_airtable_requires_s3(monkeypatch, tmp_path):
     result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
     assert "S3/R2" in result["error"]
     assert "S3/R2" in errors["message"]
+
+
+def test_run_job_airtable_rejects_r2_api_endpoint_without_cdn(monkeypatch, tmp_path):
+    monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://xxx.r2.cloudflarestorage.com")
+    monkeypatch.setenv("BUCKET_NAME", "minimax")
+    monkeypatch.delenv("BUCKET_PUBLIC_URL_PREFIX", raising=False)
+
+    errors = {}
+
+    class FakeAirtable:
+        enabled = True
+
+        def get_record(self, record_id):
+            return {"id": record_id, "fields": AIRTABLE_FIELDS}
+
+        def mark_running(self, record_id, job_id):
+            return None
+
+        def mark_error(self, record_id, message):
+            errors["message"] = message
+
+    monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
+    result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
+    assert "S3/R2" in result["error"]
+    assert "PUBLIC" in errors["message"] or "S3/R2" in errors["message"]

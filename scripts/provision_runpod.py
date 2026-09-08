@@ -36,6 +36,7 @@ def worker_env() -> dict[str, str]:
         "COMFY_ROOT",
         "COMFY_INPUT_DIR",
         "SKIP_VOLUME_CHECK",
+        "COMFY_WAIT_TIMEOUT",
     )
     env = {
         "MOTION_LORA_NAME": os.environ.get(
@@ -45,6 +46,7 @@ def worker_env() -> dict[str, str]:
         "COMFY_ROOT": os.environ.get("COMFY_ROOT", "/ComfyUI"),
         "COMFY_INPUT_DIR": os.environ.get("COMFY_INPUT_DIR", "/ComfyUI/input"),
         "SKIP_VOLUME_CHECK": os.environ.get("SKIP_VOLUME_CHECK", "0"),
+        "COMFY_WAIT_TIMEOUT": os.environ.get("COMFY_WAIT_TIMEOUT", "1650"),
         "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Generazioni"),
     }
     for key in keys:
