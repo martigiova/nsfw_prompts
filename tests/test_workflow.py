@@ -72,9 +72,24 @@ def test_keeps_motion_lora_when_named():
         motion_lora_name="hmmotion_minimax-h3_epoch40.safetensors",
         skip_motion_lora=False,
     )
-    assert workflow["137"]["inputs"]["lora_7"]["lora"] == "hmmotion_minimax-h3_epoch40.safetensors"
-    assert workflow["137"]["inputs"]["lora_7"]["on"] is True
-    assert "lora_1" not in workflow["137"]["inputs"]
+    assert workflow["137"]["class_type"] == "LoraLoaderModelOnly"
+    assert workflow["137"]["inputs"]["lora_name"] == "hmmotion_minimax-h3_epoch40.safetensors"
+    assert workflow["137"]["inputs"]["model"] == [UNET_NODE, 0]
+
+
+def test_api_graph_avoids_gui_only_nodes():
+    job = _job()
+    workflow = build_workflow(
+        job,
+        [{"kind": "image", "file": "a.png"}],
+        template_path=TEMPLATE,
+        skip_motion_lora=True,
+    )
+    types = {node["class_type"] for node in workflow.values()}
+    assert "PrimitiveFloat" not in types
+    assert "Power Lora Loader (rgthree)" not in types
+    assert "MiniMaxH3ReferencePack" in types
+    assert "VHS_VideoCombine" in types
 
 
 def test_strips_disabled_loras_and_bypasses_if_file_missing(tmp_path):

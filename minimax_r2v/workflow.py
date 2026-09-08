@@ -16,7 +16,6 @@ DEFAULT_TEMPLATE = Path(__file__).resolve().parent.parent / "workflows" / "api_t
 
 REF_PACK_NODE = "185"
 R2V_NODE = "184"
-DURATION_NODE = "132"
 SEED_NODE = "154"
 LORA_NODE = "137"
 UNET_NODE = "135"
@@ -64,7 +63,6 @@ def build_workflow(
     r2v["height"] = height
     r2v["length"] = length
 
-    workflow[DURATION_NODE]["inputs"]["value"] = job.duration
     workflow[SEED_NODE]["inputs"]["noise_seed"] = job.seed if job.seed else _random_seed()
 
     lora_name = job.motion_lora or motion_lora_name
@@ -85,35 +83,19 @@ def _apply_motion_lora(
         workflow[TURBO_NODE]["inputs"]["model"] = [UNET_NODE, 0]
         workflow.pop(LORA_NODE, None)
         return
-    lora = workflow[LORA_NODE]["inputs"]
-    matched = False
-    for key, value in list(lora.items()):
-        if not key.startswith("lora_") or not isinstance(value, dict):
-            continue
-        if lora_name and value.get("lora") == lora_name:
-            value["on"] = True
-            matched = True
-    if not matched:
-        lora["lora_1"] = {"on": True, "lora": lora_name, "strength": 1}
-        for key in list(lora):
-            if key.startswith("lora_") and key != "lora_1" and isinstance(lora[key], dict):
-                lora[key]["on"] = False
-
-    # rgthree still lists OFF slots; drop them so missing files cannot break the graph.
-    for key, value in list(lora.items()):
-        if key.startswith("lora_") and isinstance(value, dict) and not value.get("on"):
-            del lora[key]
-
-    enabled = [
-        value.get("lora")
-        for key, value in lora.items()
-        if key.startswith("lora_") and isinstance(value, dict) and value.get("on")
-    ]
-    if lora_search_dirs is not None:
-        missing = [name for name in enabled if name and not lora_exists(name, lora_search_dirs)]
-        if missing or not enabled:
-            workflow[TURBO_NODE]["inputs"]["model"] = [UNET_NODE, 0]
-            workflow.pop(LORA_NODE, None)
+    if lora_search_dirs is not None and not lora_exists(lora_name, lora_search_dirs):
+        workflow[TURBO_NODE]["inputs"]["model"] = [UNET_NODE, 0]
+        workflow.pop(LORA_NODE, None)
+        return
+    workflow[LORA_NODE] = {
+        "inputs": {
+            "lora_name": lora_name,
+            "strength_model": 1.0,
+            "model": [UNET_NODE, 0],
+        },
+        "class_type": "LoraLoaderModelOnly",
+        "_meta": {"title": "Motion LoRA"},
+    }
 
 
 def _random_seed() -> int:

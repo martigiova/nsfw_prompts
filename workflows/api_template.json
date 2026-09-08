@@ -48,15 +48,6 @@
       "title": "Load CLIP"
     }
   },
-  "132": {
-    "inputs": {
-      "value": 8
-    },
-    "class_type": "PrimitiveFloat",
-    "_meta": {
-      "title": "Float (duration)"
-    }
-  },
   "133": {
     "inputs": {
       "samples": ["153", 0],
@@ -89,51 +80,13 @@
   },
   "137": {
     "inputs": {
-      "PowerLoraLoaderHeaderWidget": {
-        "type": "PowerLoraLoaderHeaderWidget"
-      },
-      "lora_1": {
-        "on": false,
-        "lora": "HMCumshot_v1_e120.safetensors",
-        "strength": 1
-      },
-      "lora_2": {
-        "on": false,
-        "lora": "HMNSFW_AIO_V2.safetensors",
-        "strength": 0.4
-      },
-      "lora_3": {
-        "on": false,
-        "lora": "HMBreasts_085e0750_e40.safetensors",
-        "strength": 0.75
-      },
-      "lora_4": {
-        "on": false,
-        "lora": "hmcumshot3_minimax-h3_epoch15.safetensors",
-        "strength": 1
-      },
-      "lora_5": {
-        "on": false,
-        "lora": "hmcumshot3_minimax-h3_epoch35.safetensors",
-        "strength": 0.5
-      },
-      "lora_6": {
-        "on": false,
-        "lora": "hmcumshot3_minimax-h3_epoch50.safetensors",
-        "strength": 0.6
-      },
-      "lora_7": {
-        "on": true,
-        "lora": "hmmotion_minimax-h3_epoch40.safetensors",
-        "strength": 1
-      },
-      "➕ Add Lora": "",
-      "model": ["135", 0],
-      "clip": ["127", 0]
+      "lora_name": "hmmotion_minimax-h3_epoch40.safetensors",
+      "strength_model": 1.0,
+      "model": ["135", 0]
     },
-    "class_type": "Power Lora Loader (rgthree)",
+    "class_type": "LoraLoaderModelOnly",
     "_meta": {
-      "title": "Power Lora Loader (rgthree)"
+      "title": "Motion LoRA"
     }
   },
   "149": {

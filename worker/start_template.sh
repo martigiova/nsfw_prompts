@@ -14,8 +14,7 @@ if [[ ! -f "${COMFY_ROOT}/main.py" ]]; then
 fi
 
 # MiniMaxH3ReferencePack joins references_json filenames with
-# folder_paths.get_input_directory(). That is THIS process's input folder,
-# not /runpod-volume/ComfyUI/input. Keep them identical.
+# folder_paths.get_input_directory() = ${COMFY_ROOT}/input when launched from there.
 export COMFY_INPUT_DIR="${COMFY_INPUT_DIR:-${COMFY_ROOT}/input}"
 mkdir -p "${COMFY_INPUT_DIR}" "${COMFY_ROOT}/output"
 
@@ -29,10 +28,15 @@ python "${COMFY_ROOT}/main.py" \
   --port 8188 \
   --disable-auto-launch \
   --disable-metadata \
-  --input-directory "${COMFY_INPUT_DIR}" \
-  --verbose INFO \
   --log-stdout &
-echo $! > /tmp/comfyui.pid
+COMFY_PID=$!
+echo "${COMFY_PID}" > /tmp/comfyui.pid
+sleep 2
+if ! kill -0 "${COMFY_PID}" 2>/dev/null; then
+  echo "minimax-r2v: ComfyUI exited during startup" >&2
+  wait "${COMFY_PID}" || true
+  exit 1
+fi
 
 echo "minimax-r2v: starting RunPod handler"
 exec python /handler.py
