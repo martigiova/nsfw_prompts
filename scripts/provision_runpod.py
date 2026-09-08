@@ -6,9 +6,18 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 API = "https://rest.runpod.io/v1"
+
+# Exact enum values from POST /endpoints (wrong names are rejected).
+GPU_TYPE_IDS = [
+    "NVIDIA GeForce RTX 4090",
+    "NVIDIA RTX A6000",
+    "NVIDIA L40S",
+    "NVIDIA A100 80GB PCIe",
+]
 
 
 def request(method: str, path: str, payload: dict | None = None) -> dict:
@@ -25,8 +34,48 @@ def request(method: str, path: str, payload: dict | None = None) -> dict:
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(req) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise SystemExit(f"RunPod {exc.code} {method} {path}: {body}") from exc
+
+
+def worker_env() -> dict[str, str]:
+    keys = (
+        "MOTION_LORA_NAME",
+        "SKIP_MOTION_LORA",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MODEL",
+        "AIRTABLE_TOKEN",
+        "AIRTABLE_BASE_ID",
+        "AIRTABLE_TABLE_NAME",
+        "BUCKET_ENDPOINT_URL",
+        "BUCKET_ACCESS_KEY_ID",
+        "BUCKET_SECRET_ACCESS_KEY",
+        "BUCKET_NAME",
+        "BUCKET_PUBLIC_URL_PREFIX",
+        "BUCKET_REGION",
+        "COMFY_ROOT",
+        "COMFY_INPUT_DIR",
+        "SKIP_VOLUME_CHECK",
+    )
+    env = {
+        "MOTION_LORA_NAME": os.environ.get(
+            "MOTION_LORA_NAME", "hmmotion_minimax-h3_epoch40.safetensors"
+        ),
+        "SKIP_MOTION_LORA": os.environ.get("SKIP_MOTION_LORA", "0"),
+        "COMFY_ROOT": os.environ.get("COMFY_ROOT", "/ComfyUI"),
+        "COMFY_INPUT_DIR": os.environ.get("COMFY_INPUT_DIR", "/ComfyUI/input"),
+        "SKIP_VOLUME_CHECK": os.environ.get("SKIP_VOLUME_CHECK", "0"),
+        "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Generazioni"),
+    }
+    for key in keys:
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+    return env
 
 
 def main() -> int:
@@ -35,31 +84,25 @@ def main() -> int:
     if not image:
         print("Set DOCKER_IMAGE to your pushed worker image", file=sys.stderr)
         return 1
+    if not volume:
+        print(
+            "Warning: RUNPOD_NETWORK_VOLUME_ID is empty. "
+            "The endpoint will start without MiniMax weights.",
+            file=sys.stderr,
+        )
 
     template = request(
         "POST",
         "/templates",
         {
-            "name": "minimax-h3-r2v-worker",
+            "name": os.environ.get("RUNPOD_TEMPLATE_NAME", "minimax-h3-r2v-worker"),
             "imageName": image,
             "isServerless": True,
-            "containerDiskInGb": 20,
+            "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "40")),
             "volumeInGb": 0,
             "volumeMountPath": "/runpod-volume",
-            "env": {
-                "MOTION_LORA_NAME": os.environ.get(
-                    "MOTION_LORA_NAME", "hmmotion_minimax-h3_epoch40.safetensors"
-                ),
-                "OPENROUTER_API_KEY": os.environ.get("OPENROUTER_API_KEY", ""),
-                "AIRTABLE_TOKEN": os.environ.get("AIRTABLE_TOKEN", ""),
-                "AIRTABLE_BASE_ID": os.environ.get("AIRTABLE_BASE_ID", ""),
-                "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Generazioni"),
-                "BUCKET_ENDPOINT_URL": os.environ.get("BUCKET_ENDPOINT_URL", ""),
-                "BUCKET_ACCESS_KEY_ID": os.environ.get("BUCKET_ACCESS_KEY_ID", ""),
-                "BUCKET_SECRET_ACCESS_KEY": os.environ.get("BUCKET_SECRET_ACCESS_KEY", ""),
-                "BUCKET_NAME": os.environ.get("BUCKET_NAME", ""),
-                "BUCKET_PUBLIC_URL_PREFIX": os.environ.get("BUCKET_PUBLIC_URL_PREFIX", ""),
-            },
+            "dockerStartCmd": ["/start-serverless.sh"],
+            "env": worker_env(),
         },
     )
     print("Template:", json.dumps(template, indent=2))
@@ -69,18 +112,14 @@ def main() -> int:
         return 1
 
     endpoint_body = {
-        "name": "minimax-h3-r2v",
+        "name": os.environ.get("RUNPOD_ENDPOINT_NAME", "minimax-h3-r2v"),
         "templateId": template_id,
-        "gpuTypeIds": [
-            "NVIDIA RTX 4090",
-            "NVIDIA A6000",
-            "NVIDIA A100 80GB PCIe",
-        ],
+        "gpuTypeIds": GPU_TYPE_IDS,
         "gpuCount": 1,
-        "workersMin": 0,
-        "workersMax": 2,
-        "idleTimeout": 60,
-        "executionTimeoutMs": 1800000,
+        "workersMin": int(os.environ.get("WORKERS_MIN", "0")),
+        "workersMax": int(os.environ.get("WORKERS_MAX", "2")),
+        "idleTimeout": int(os.environ.get("IDLE_TIMEOUT", "120")),
+        "executionTimeoutMs": int(os.environ.get("EXECUTION_TIMEOUT_MS", "1800000")),
         "scalerType": "QUEUE_DELAY",
         "scalerValue": 4,
         "flashboot": True,
@@ -90,6 +129,10 @@ def main() -> int:
 
     endpoint = request("POST", "/endpoints", endpoint_body)
     print("Endpoint:", json.dumps(endpoint, indent=2))
+    endpoint_id = endpoint.get("id") or endpoint.get("endpointId")
+    if endpoint_id:
+        print(f"Airtable RUNPOD_ENDPOINT_ID={endpoint_id}")
+        print(f"POST https://api.runpod.ai/v2/{endpoint_id}/run")
     return 0
 
 

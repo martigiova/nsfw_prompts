@@ -62,7 +62,7 @@ Il node `MiniMaxH3ReferencePack` risolve i file con `os.path.join(input_dir, fil
 
 ## 3. Endpoint serverless
 
-In console RunPod: template serverless con quell’immagine, Network Volume selezionato, GPU 4090+, execution timeout 1 800 000 ms.
+In console RunPod: template serverless con quell’immagine, Network Volume selezionato, GPU **NVIDIA GeForce RTX 4090** (o A6000 / L40S / A100), execution timeout 1 800 000 ms.
 
 Oppure, con le env in `.env.example`:
 
@@ -70,7 +70,7 @@ Oppure, con le env in `.env.example`:
 python scripts/provision_runpod.py
 ```
 
-Env obbligatorie sull’endpoint:
+`provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA GeForce RTX 4090`, non `NVIDIA RTX 4090`). Env obbligatorie sull’endpoint:
 
 - `AIRTABLE_TOKEN`, `AIRTABLE_BASE_ID`
 - `BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`, `BUCKET_NAME`, `BUCKET_PUBLIC_URL_PREFIX`
@@ -83,7 +83,7 @@ Schema e script: `airtable/SCHEMA.md` e `airtable/submit_job.js`.
 
 Campi: Prompt, Image, Video, Audio (opzionale), Duration, Aspect, Auto Prompt, Status, Output, Job ID, Errore.
 
-Inserisci una riga, metti `Status=Queued`. L’automazione manda solo l’id del record: il worker legge gli allegati (audio opzionale incluso) e riscrive il record a fine generazione.
+Inserisci una riga, metti `Status=Queued`. L’automazione manda solo l’id del record (secret `RUNPOD_ENDPOINT_ID` + `RUNPOD_API_KEY`): il worker legge gli allegati (audio opzionale incluso) e riscrive il record a fine generazione.
 
 L’mp4 MiniMax supera i 5 MB: Airtable accetta allegati grandi solo da **URL pubblico**. Serve S3 o Cloudflare R2.
 
@@ -128,6 +128,7 @@ Payload:
 ```bash
 python3 -m pip install -r requirements-dev.txt
 python3 -m pytest -q
+python3 -m minimax_r2v check
 python3 -m minimax_r2v build-workflow \
   --prompt "The woman from <Picture 1> walks like <Video 1>" \
   --image face.png \

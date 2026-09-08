@@ -21,8 +21,8 @@ Crea una tabella `Generazioni` con questi campi (i nomi devono coincidere con le
 1. Automation: **When record matches conditions** → `Status` is `Queued`.
 2. Action: **Run script**, incolla `submit_job.js`.
 3. Input variable: `recordId` = id del record che ha triggerato.
-4. Secret: `RUNPOD_API_KEY`.
+4. Secrets: `RUNPOD_API_KEY` e `RUNPOD_ENDPOINT_ID` (id dell'endpoint serverless, non il template).
 
-Il worker legge da solo Prompt, Image (anche più file), Video, Audio opzionale, Duration, Aspect, Auto Prompt. A fine job fa PATCH: `Status=Done` e `Output` con URL pubblico S3/R2.
+Lo script POST `/run` con solo `{ airtable_record_id }`, scrive `Job ID` e `Status=Running`. Se RunPod rifiuta la chiamata, imposta `Status=Error` e `Errore`. Il worker poi legge Prompt, Image (anche più file), Video, Audio opzionale, Duration, Aspect, Auto Prompt e a fine job fa PATCH: `Status=Done` e `Output` con URL pubblico S3/R2.
 
 Senza bucket S3/R2 l'mp4 non può essere allegato (limite 5 MB dell'upload diretto Airtable). Configura un bucket.
