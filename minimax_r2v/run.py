@@ -8,10 +8,12 @@ from pathlib import Path
 
 from .airtable import AirtableClient
 from .comfy import ComfyClient
-from .media import download_media
+from .graph import assert_workflow_links
 from .loras import lora_search_dirs
+from .media import download_media
 from .payload import JobRequest, apply_airtable_fields, parse_job_input, references_manifest
 from .storage import s3_configured, upload_file
+from .volume import assert_weights_if_volume_present
 from .workflow import build_workflow
 
 
@@ -51,6 +53,8 @@ def run_job(event: dict) -> dict:
         if airtable and record_id:
             airtable.mark_running(record_id, job_id)
 
+        assert_weights_if_volume_present()
+
         saved: list = []
         if not job.workflow:
             saved = download_media(job.all_media(), input_dir)
@@ -76,6 +80,7 @@ def run_job(event: dict) -> dict:
         else:
             workflow = job.workflow
 
+        assert_workflow_links(workflow)
         comfy = ComfyClient(comfy_host)
         comfy.wait_until_ready()
         prompt_id = comfy.queue_prompt(workflow)

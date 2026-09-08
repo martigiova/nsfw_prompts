@@ -40,10 +40,32 @@ def test_collects_vhs_mp4_from_gifs_key():
     assert files[0]["filename"] == "minimax_r2v_00001.mp4"
 
 
+def test_collects_vhs_mp4_from_animated_key():
+    client = ComfyClient()
+    files = client.collect_videos(
+        {
+            "outputs": {
+                "119": {
+                    "animated": [
+                        {
+                            "filename": "minimax_r2v_00002.mp4",
+                            "subfolder": "",
+                            "type": "output",
+                            "format": "video/h264-mp4",
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    assert files[0]["filename"] == "minimax_r2v_00002.mp4"
+
+
 def test_run_job_happy_path(monkeypatch, tmp_path):
     monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
     monkeypatch.setenv("WORKFLOW_PATH", "workflows/api_template.json")
     monkeypatch.setenv("SKIP_MOTION_LORA", "1")
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
     monkeypatch.setenv("TMPDIR", str(tmp_path))
     monkeypatch.delenv("BUCKET_ENDPOINT_URL", raising=False)
     monkeypatch.delenv("AIRTABLE_TOKEN", raising=False)
@@ -97,6 +119,34 @@ def test_run_job_happy_path(monkeypatch, tmp_path):
     assert result["videos"][0]["type"] == "base64"
     assert base64.b64decode(result["videos"][0]["data"]) == b"fake-mp4"
     assert downloaded
+
+
+def test_run_job_rejects_dangling_custom_workflow(monkeypatch, tmp_path):
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
+    monkeypatch.delenv("AIRTABLE_TOKEN", raising=False)
+
+    class FakeComfy:
+        def wait_until_ready(self):
+            raise AssertionError("must not queue a broken graph")
+
+        def queue_prompt(self, workflow, client_id=None):
+            raise AssertionError("must not queue a broken graph")
+
+    monkeypatch.setattr("minimax_r2v.run.ComfyClient", lambda host=None: FakeComfy())
+    result = run_job(
+        {
+            "id": "job-1",
+            "input": {
+                "workflow": {
+                    "1": {
+                        "class_type": "MiniMaxH3ReferencePack",
+                        "inputs": {"model": ["99", 0]},
+                    }
+                }
+            },
+        }
+    )
+    assert "links to missing nodes" in result["error"]
 
 
 def test_run_job_validation_error():

@@ -22,6 +22,14 @@ if [[ -f /app/worker/extra_model_paths.yaml ]]; then
   cp /app/worker/extra_model_paths.yaml "${COMFY_ROOT}/extra_model_paths.yaml"
 fi
 
+if [[ "${SKIP_VOLUME_CHECK:-0}" != "1" ]]; then
+  echo "minimax-r2v: checking Network Volume weights"
+  python - <<'PY'
+from minimax_r2v.volume import assert_weights_if_volume_present
+assert_weights_if_volume_present()
+PY
+fi
+
 echo "minimax-r2v: starting ComfyUI from ${COMFY_ROOT} input=${COMFY_INPUT_DIR}"
 python "${COMFY_ROOT}/main.py" \
   --listen 127.0.0.1 \
@@ -39,4 +47,23 @@ if ! kill -0 "${COMFY_PID}" 2>/dev/null; then
 fi
 
 echo "minimax-r2v: starting RunPod handler"
-exec python /handler.py
+python /handler.py &
+HANDLER_PID=$!
+
+while true; do
+  if ! kill -0 "${COMFY_PID}" 2>/dev/null; then
+    echo "minimax-r2v: ComfyUI exited, stopping handler" >&2
+    kill "${HANDLER_PID}" 2>/dev/null || true
+    wait "${COMFY_PID}" || true
+    exit 1
+  fi
+  if ! kill -0 "${HANDLER_PID}" 2>/dev/null; then
+    set +e
+    wait "${HANDLER_PID}"
+    status=$?
+    set -e
+    kill "${COMFY_PID}" 2>/dev/null || true
+    exit "${status}"
+  fi
+  sleep 2
+done

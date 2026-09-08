@@ -7,47 +7,27 @@ import os
 import sys
 from pathlib import Path
 
-REQUIRED = [
-    "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
-    "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
-    "vae/minimax_h3_video_vae_fp16.safetensors",
-    "vae/minimax_h3_audio_vae_fp32.safetensors",
-    "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
-]
-OPTIONAL = [
-    "loras/hmmotion_minimax-h3_epoch40.safetensors",
-]
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-
-def roots() -> list[Path]:
-    volume = Path(os.environ.get("VOLUME_ROOT", "/workspace"))
-    return [
-        volume / "models",
-        volume / "ComfyUI" / "models",
-        Path("/runpod-volume/models"),
-        Path("/runpod-volume/ComfyUI/models"),
-    ]
-
-
-def find(rel: str) -> Path | None:
-    for root in roots():
-        candidate = root / rel
-        if candidate.is_file() and candidate.stat().st_size > 1_000_000:
-            return candidate
-    return None
+from minimax_r2v.volume import OPTIONAL, REQUIRED, find_weight, missing_weights  # noqa: E402
 
 
 def main() -> int:
+    if not os.environ.get("VOLUME_ROOT") and Path("/workspace/models").exists():
+        os.environ.setdefault("VOLUME_ROOT", "/workspace")
+
     missing = []
     for rel in REQUIRED:
-        path = find(rel)
+        path = find_weight(rel)
         if path:
             print(f"OK   {rel} ({path.stat().st_size / 1e9:.1f} GB) -> {path}")
         else:
             print(f"MISS {rel}")
             missing.append(rel)
     for rel in OPTIONAL:
-        path = find(rel)
+        path = find_weight(rel)
         print(("OK   " if path else "OPT  ") + rel)
     if missing:
         print("Missing required weights. Run scripts/bootstrap_network_volume.sh", file=sys.stderr)

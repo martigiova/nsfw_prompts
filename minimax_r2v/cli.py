@@ -10,7 +10,9 @@ from pathlib import Path
 
 import requests
 
+from minimax_r2v.graph import assert_workflow_links
 from minimax_r2v.payload import parse_job_input
+from minimax_r2v.volume import missing_weights, volume_is_present
 from minimax_r2v.workflow import build_workflow
 
 
@@ -43,9 +45,44 @@ def build_cmd(args: argparse.Namespace) -> int:
         skip_motion_lora=args.skip_motion_lora,
         motion_lora_name=args.motion_lora,
     )
+    assert_workflow_links(workflow)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(workflow, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote {args.output}")
+    return 0
+
+
+def check_cmd(args: argparse.Namespace) -> int:
+    payload = {
+        "prompt": "The woman from <Picture 1> appears in <Video 1>",
+        "images": ["face.png"],
+        "video": "clip.mp4",
+        "duration": 8,
+        "aspect_ratio": "9:16",
+    }
+    job, error = parse_job_input(payload)
+    if error:
+        print(error, file=sys.stderr)
+        return 1
+    workflow = build_workflow(
+        job,
+        [
+            {"kind": "image", "file": "face.png"},
+            {"kind": "video", "file": "clip.mp4", "use_soundtrack": True},
+        ],
+        template_path=args.template,
+        skip_motion_lora=True,
+    )
+    assert_workflow_links(workflow)
+    print("workflow graph: OK")
+    if volume_is_present():
+        missing = missing_weights()
+        if missing:
+            print("volume missing: " + ", ".join(missing), file=sys.stderr)
+            return 1
+        print("volume weights: OK")
+    else:
+        print("volume: not mounted (skip)")
     return 0
 
 
@@ -95,6 +132,10 @@ def main(argv: list[str] | None = None) -> int:
     submit.add_argument("payload")
     submit.add_argument("--endpoint")
     submit.set_defaults(func=submit_cmd)
+
+    check = sub.add_parser("check", help="Validate the API graph (and volume if mounted)")
+    check.add_argument("--template", default="workflows/api_template.json")
+    check.set_defaults(func=check_cmd)
 
     parsed = parser.parse_args(argv)
     return parsed.func(parsed)

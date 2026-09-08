@@ -62,6 +62,7 @@ def test_run_job_hydrates_from_airtable(monkeypatch, tmp_path):
     monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
     monkeypatch.setenv("WORKFLOW_PATH", "workflows/api_template.json")
     monkeypatch.setenv("SKIP_MOTION_LORA", "1")
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
     monkeypatch.setenv("TMPDIR", str(tmp_path))
     monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
     monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
@@ -115,3 +116,37 @@ def test_run_job_hydrates_from_airtable(monkeypatch, tmp_path):
     result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
     assert "error" not in result
     assert result["references"] == ["face.png", "clothes.png", "walk.mp4"]
+
+
+def test_run_job_fails_when_volume_is_empty(monkeypatch, tmp_path):
+    monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
+    monkeypatch.setenv("WORKFLOW_PATH", "workflows/api_template.json")
+    monkeypatch.setenv("VOLUME_ROOT", str(tmp_path))
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "0")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+
+    errors = {}
+
+    class FakeAirtable:
+        enabled = True
+        status_field = "Status"
+        error_field = "Errore"
+
+        def get_record(self, record_id):
+            return {"id": record_id, "fields": AIRTABLE_FIELDS}
+
+        def mark_running(self, record_id, job_id):
+            return None
+
+        def mark_error(self, record_id, message):
+            errors["message"] = message
+
+        def patch(self, *args, **kwargs):
+            return {}
+
+    monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
+    result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
+    assert "error" in result
+    assert "Network volume" in result["error"]
+    assert "minimax_h3" in errors["message"]

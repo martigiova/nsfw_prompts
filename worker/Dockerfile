@@ -10,11 +10,18 @@ ENV PYTHONUNBUFFERED=1 \
 COPY worker/extra_model_paths.yaml /comfyui/extra_model_paths.yaml
 
 WORKDIR /comfyui/custom_nodes
-RUN git clone --depth 1 https://github.com/Hearmeman24/ComfyUI-MiniMaxRefPack.git \
- && git clone --depth 1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git \
- && git clone --depth 1 https://github.com/rgthree/rgthree-comfy.git \
- && ( [ -f ComfyUI-MiniMaxRefPack/requirements.txt ] && uv pip install -r ComfyUI-MiniMaxRefPack/requirements.txt || true ) \
- && ( [ -f ComfyUI-VideoHelperSuite/requirements.txt ] && uv pip install -r ComfyUI-VideoHelperSuite/requirements.txt || true )
+RUN set -eux; \
+    if [ ! -d ComfyUI-MiniMaxRefPack ]; then \
+      git clone --depth 1 https://github.com/Hearmeman24/ComfyUI-MiniMaxRefPack.git; \
+    fi; \
+    if [ ! -d ComfyUI-VideoHelperSuite ]; then \
+      git clone --depth 1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git; \
+    fi; \
+    if [ ! -d rgthree-comfy ]; then \
+      git clone --depth 1 https://github.com/rgthree/rgthree-comfy.git; \
+    fi; \
+    if [ -f ComfyUI-MiniMaxRefPack/requirements.txt ]; then uv pip install -r ComfyUI-MiniMaxRefPack/requirements.txt; fi; \
+    if [ -f ComfyUI-VideoHelperSuite/requirements.txt ]; then uv pip install -r ComfyUI-VideoHelperSuite/requirements.txt; fi
 
 WORKDIR /
 COPY minimax_r2v /app/minimax_r2v

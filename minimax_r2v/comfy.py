@@ -9,7 +9,7 @@ from typing import Any
 import requests
 
 DEFAULT_HOST = "127.0.0.1:8188"
-VIDEO_KEYS = ("gifs", "videos", "video", "images")
+VIDEO_KEYS = ("gifs", "videos", "video", "images", "animated")
 
 
 class ComfyClient:

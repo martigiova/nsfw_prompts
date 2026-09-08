@@ -11,8 +11,13 @@ ENV PYTHONUNBUFFERED=1 \
     COMFY_OUTPUT_DIR=/ComfyUI/output
 
 WORKDIR /ComfyUI/custom_nodes
-RUN git clone --depth 1 https://github.com/Hearmeman24/ComfyUI-MiniMaxRefPack.git \
- && ( [ -f ComfyUI-MiniMaxRefPack/requirements.txt ] && python -m pip install --no-cache-dir -r ComfyUI-MiniMaxRefPack/requirements.txt || true )
+RUN set -eux; \
+    if [ ! -d ComfyUI-MiniMaxRefPack ]; then \
+      git clone --depth 1 https://github.com/Hearmeman24/ComfyUI-MiniMaxRefPack.git; \
+    fi; \
+    if [ -f ComfyUI-MiniMaxRefPack/requirements.txt ]; then \
+      python -m pip install --no-cache-dir -r ComfyUI-MiniMaxRefPack/requirements.txt; \
+    fi
 
 WORKDIR /
 COPY worker/extra_model_paths.yaml /ComfyUI/extra_model_paths.yaml
