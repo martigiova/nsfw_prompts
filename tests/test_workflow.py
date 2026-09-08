@@ -28,6 +28,14 @@ def test_template_has_no_secrets():
     data = json.loads(raw)
     assert data["185"]["inputs"]["openrouter_api_key"] == ""
     assert data["185"]["inputs"]["prompt_provider"] == "none"
+    assert data["184"]["inputs"]["ref_image_size"] == "match"
+
+
+def test_dockerfile_pins_published_minimax_tag():
+    text = Path("worker/Dockerfile.template").read_text(encoding="utf-8")
+    assert "ls250824/run-comfyui-minimax:08092026" in text
+    assert "run-comfyui-minimax:latest" not in text
+    assert 'ENTRYPOINT ["/start-serverless.sh"]' in text
 
 
 def test_patch_injects_prompt_refs_and_geometry():

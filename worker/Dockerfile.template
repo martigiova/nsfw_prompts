@@ -1,6 +1,6 @@
 # Wrap the GUI MiniMax template so the same ComfyUI stack answers RunPod /run.
 # Build: docker build -f worker/Dockerfile.template -t YOURUSER/minimax-h3-r2v:template .
-ARG BASE_IMAGE=ls250824/run-comfyui-minimax:latest
+ARG BASE_IMAGE=ls250824/run-comfyui-minimax:08092026
 FROM ${BASE_IMAGE}
 
 ENV PYTHONUNBUFFERED=1 \
@@ -33,4 +33,7 @@ RUN python -m pip install --no-cache-dir -r /app/requirements.txt \
  && chmod +x /start-serverless.sh
 
 WORKDIR /app
-CMD ["/start-serverless.sh"]
+# The MiniMax GUI image has its own ENTRYPOINT (pod provisioning UI).
+# Override it or RunPod will run /start.sh and ignore this CMD.
+ENTRYPOINT ["/start-serverless.sh"]
+CMD []

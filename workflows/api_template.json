@@ -147,7 +147,7 @@
       "width": 736,
       "height": 1344,
       "length": 192,
-      "ref_image_size": "max",
+      "ref_image_size": "match",
       "clip": ["127", 0],
       "vae": ["121", 0],
       "audio_vae": ["122", 0],
