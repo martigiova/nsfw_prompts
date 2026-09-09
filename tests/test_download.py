@@ -31,3 +31,28 @@ def test_download_replaces_truncated_and_links_aliases(tmp_path, monkeypatch):
     assert all(path.stat().st_size >= 50 for path in saved)
     assert (tmp_path / "models" / "unet" / "minimax_h3_ref2va_pruned_int8_convrot.safetensors").is_symlink()
     assert not (tmp_path / "models" / ".hf-cache").exists()
+
+
+def test_stream_download_writes_without_huggingface_hub(tmp_path, monkeypatch):
+    monkeypatch.setattr("minimax_r2v.download.expected_min_bytes", lambda rel: 50)
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, _n):
+            if getattr(self, "done", False):
+                return b""
+            self.done = True
+            return b"1" * 80
+
+    monkeypatch.setattr(
+        "minimax_r2v.download.urllib.request.urlopen",
+        lambda *args, **kwargs: FakeResp(),
+    )
+    saved = download_weights(tmp_path)
+    assert len(saved) == 5
+    assert all(path.stat().st_size >= 50 for path in saved)

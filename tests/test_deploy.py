@@ -41,6 +41,7 @@ def test_bootstrap_pod_is_cpu_with_volume(monkeypatch):
     body = pod_body()
     assert body["imageName"] == "runpod/base:1.1.0-ubuntu2204"
     assert body["computeType"] == "CPU"
+    assert body["vcpuCount"] == 8
     assert body["networkVolumeId"] == "vol_123"
     assert body["volumeMountPath"] == "/workspace"
     assert body["dockerEntrypoint"] == start_entrypoint()
