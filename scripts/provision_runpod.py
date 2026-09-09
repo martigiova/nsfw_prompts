@@ -48,17 +48,19 @@ def worker_env() -> dict[str, str]:
         "COMFY_INPUT_DIR",
         "SKIP_VOLUME_CHECK",
         "COMFY_WAIT_TIMEOUT",
+        "APP_ROOT",
     )
     env = {
         "MOTION_LORA_NAME": os.environ.get(
             "MOTION_LORA_NAME", "hmmotion_minimax-h3_epoch40.safetensors"
         ),
-        "SKIP_MOTION_LORA": os.environ.get("SKIP_MOTION_LORA", "0"),
+        "SKIP_MOTION_LORA": os.environ.get("SKIP_MOTION_LORA", "1"),
         "COMFY_ROOT": os.environ.get("COMFY_ROOT", "/ComfyUI"),
         "COMFY_INPUT_DIR": os.environ.get("COMFY_INPUT_DIR", "/ComfyUI/input"),
         "SKIP_VOLUME_CHECK": os.environ.get("SKIP_VOLUME_CHECK", "0"),
         "COMFY_WAIT_TIMEOUT": os.environ.get("COMFY_WAIT_TIMEOUT", "1650"),
-        "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Generazioni"),
+        "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Minimax"),
+        "APP_ROOT": os.environ.get("APP_ROOT", "/runpod-volume/nsfw_prompts"),
     }
     for key in keys:
         value = os.environ.get(key)
@@ -75,9 +77,11 @@ def template_body(image: str) -> dict:
         "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "40")),
         "volumeInGb": 0,
         "volumeMountPath": "/runpod-volume",
-        # Override the GUI image ENTRYPOINT; dockerStartCmd alone becomes
-        # arguments to /start.sh and the handler never starts.
-        "dockerEntrypoint": ["/start-serverless.sh"],
+        # Public MiniMax image: handler lives on the Network Volume.
+        "dockerEntrypoint": [
+            "/bin/bash",
+            "/runpod-volume/nsfw_prompts/worker/start_from_volume.sh",
+        ],
         "dockerStartCmd": [],
         "env": worker_env(),
     }

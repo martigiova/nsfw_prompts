@@ -51,9 +51,9 @@ def upload_file(path: str | Path, key: str) -> str:
     except ImportError as exc:
         raise RuntimeError("boto3 is required to upload videos") from exc
 
-    extra: dict[str, str] = {}
+    from botocore.config import Config
+
     region = os.environ.get("BUCKET_REGION") or os.environ.get("BUCKET_REGION_NAME") or "auto"
-    extra["region_name"] = region
     client = boto3.client(
         "s3",
         endpoint_url=os.environ.get("BUCKET_ENDPOINT_URL"),
@@ -61,7 +61,8 @@ def upload_file(path: str | Path, key: str) -> str:
         or os.environ.get("BUCKET_ACCESS_KEY"),
         aws_secret_access_key=os.environ.get("BUCKET_SECRET_ACCESS_KEY")
         or os.environ.get("BUCKET_SECRET_KEY"),
-        **extra,
+        region_name=region,
+        config=Config(signature_version="s3v4"),
     )
     bucket = os.environ["BUCKET_NAME"]
     extra_args = {"ContentType": "video/mp4"}

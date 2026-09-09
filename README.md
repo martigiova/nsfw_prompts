@@ -61,7 +61,7 @@ bash /workspace/nsfw_prompts/scripts/on_pod.sh
 
 ## 2. Immagine worker
 
-Preferita: wrappa **la stessa immagine del template MiniMax** (`ls250824/run-comfyui-minimax:08092026` — su Docker Hub **non esiste** `:latest`, solo tag data). Il provisioning GUI non parte: i pesi arrivano dal volume. Il Dockerfile **sovrascrive l’ENTRYPOINT** dell’immagine GUI, altrimenti RunPod avvia `/start.sh` e l’handler `/run` non parte.
+Preferita: usa **direttamente** `ls250824/run-comfyui-minimax:08092026` (su Docker Hub **non esiste** `:latest`). Il codice worker sta sul Network Volume in `nsfw_prompts/`; non serve build/push di un’immagine custom. L’ENTRYPOINT è `worker/start_from_volume.sh`.
 
 ```bash
 docker build -t YOURUSER/minimax-h3-r2v:1.0 -f worker/Dockerfile.template .

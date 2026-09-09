@@ -45,6 +45,7 @@ def test_bootstrap_pod_is_cpu_with_volume(monkeypatch):
     assert body["dockerStartCmd"] == start_command()
     script = body["dockerStartCmd"][0]
     assert "scripts/on_pod.sh" in script
+    assert "/workspace/nsfw_prompts" in script
     assert "validate_volume.py" in script
     assert "write_status error" in script
     assert body["env"]["GIT_REF"] == "cursor/minimax-runpod-serverless-9e74"
@@ -75,13 +76,19 @@ def test_interpret_status_fails_fast_on_exited_pod():
     assert interpret_status(None, {"desiredStatus": "RUNNING"}) == "wait"
 
 
-def test_template_overrides_gui_entrypoint():
-    body = template_body("me/minimax-h3-r2v:1.0")
-    assert body["dockerEntrypoint"] == ["/start-serverless.sh"]
+def test_template_runs_handler_from_volume():
+    body = template_body("ls250824/run-comfyui-minimax:08092026")
+    assert body["dockerEntrypoint"] == [
+        "/bin/bash",
+        "/runpod-volume/nsfw_prompts/worker/start_from_volume.sh",
+    ]
     assert body["dockerStartCmd"] == []
 
 
-def test_on_pod_does_not_ignore_missing_weights():
+def test_volume_start_script_uses_repo_on_volume():
+    text = Path("worker/start_from_volume.sh").read_text(encoding="utf-8")
+    assert "/runpod-volume/nsfw_prompts" in text
+    assert "handler.py" in text
     text = Path("scripts/on_pod.sh").read_text(encoding="utf-8")
     assert "validate_volume.py" in text
     assert "validate_volume.py || true" not in text

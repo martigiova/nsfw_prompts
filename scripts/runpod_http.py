@@ -16,7 +16,11 @@ def request(method: str, path: str, payload: dict | None = None) -> dict:
     if not api_key:
         raise SystemExit("Set RUNPOD_API_KEY")
     data = None if payload is None else json.dumps(payload).encode("utf-8")
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "User-Agent": "minimax-r2v/1.0",
+        "Accept": "application/json",
+    }
     if data is not None:
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(

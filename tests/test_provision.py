@@ -17,6 +17,9 @@ def test_worker_env_sets_comfy_input_dir(monkeypatch):
     assert env["COMFY_WAIT_TIMEOUT"] == "1650"
     assert env["AIRTABLE_TOKEN"] == "tok"
     assert env["AIRTABLE_BASE_ID"] == "appX"
+    assert env["AIRTABLE_TABLE_NAME"] == "Minimax"
+    assert env["APP_ROOT"] == "/runpod-volume/nsfw_prompts"
+    assert env["SKIP_MOTION_LORA"] == "1"
 
 
 def test_worker_env_copies_airtable_field_names(monkeypatch):

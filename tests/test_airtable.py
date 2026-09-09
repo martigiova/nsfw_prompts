@@ -23,7 +23,7 @@ def test_mark_done_sends_attachment_url(monkeypatch):
     assert "rec1" in seen["url"]
     fields = seen["json"]["fields"]
     assert fields["Status"] == "Done"
-    assert fields["Output"][0]["url"] == "https://cdn.example.com/out.mp4"
+    assert fields["Output"] == "https://cdn.example.com/out.mp4"
 
 
 def test_airtable_honors_env_field_names(monkeypatch):
@@ -49,4 +49,4 @@ def test_airtable_honors_env_field_names(monkeypatch):
     fields = seen["json"]["fields"]
     assert fields["Stato"] == "Done"
     assert "Status" not in fields
-    assert fields["Video"][0]["url"] == "https://cdn.example.com/out.mp4"
+    assert fields["Video"] == "https://cdn.example.com/out.mp4"

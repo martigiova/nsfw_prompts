@@ -24,7 +24,7 @@ class AirtableClient:
     ) -> None:
         self.token = token or os.environ.get("AIRTABLE_TOKEN", "")
         self.base_id = base_id or os.environ.get("AIRTABLE_BASE_ID", "")
-        self.table = table or os.environ.get("AIRTABLE_TABLE_NAME", "Generazioni")
+        self.table = table or os.environ.get("AIRTABLE_TABLE_NAME", "Minimax")
         self.status_field = status_field or os.environ.get("AIRTABLE_STATUS_FIELD", "Status")
         self.output_field = output_field or os.environ.get("AIRTABLE_OUTPUT_FIELD", "Output")
         self.error_field = error_field or os.environ.get("AIRTABLE_ERROR_FIELD", "Errore")
@@ -61,7 +61,8 @@ class AirtableClient:
     def mark_done(self, record_id: str, video_url: str, filename: str = "output.mp4") -> None:
         fields: dict[str, Any] = {self.status_field: "Done"}
         if video_url:
-            fields[self.output_field] = [{"url": video_url, "filename": filename}]
+            # Output is an R2 URL field, not an Airtable attachment.
+            fields[self.output_field] = video_url
         self.patch(record_id, fields)
 
     def mark_error(self, record_id: str, message: str) -> None:

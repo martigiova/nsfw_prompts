@@ -1,20 +1,13 @@
 /**
- * Airtable Automation → Scripting
+ * Airtable Automation → Scripting (table Minimax)
  *
  * Trigger: When a record matches conditions, Status = "Queued"
- * Input variables:
- *   - recordId (required) = the triggering record
- *   - tableName (optional, default Generazioni)
- *
- * Secrets:
- *   - RUNPOD_API_KEY
- *   - RUNPOD_ENDPOINT_ID
- *
- * The worker reads Prompt / Image / Video / Audio from Airtable itself.
+ * Input: recordId = triggering record
+ * Secrets: RUNPOD_API_KEY, RUNPOD_ENDPOINT_ID
  */
 const config = input.config();
 const recordId = config.recordId;
-const tableName = config.tableName || "Generazioni";
+const tableName = config.tableName || "Minimax";
 const endpointId = input.secret("RUNPOD_ENDPOINT_ID");
 const apiKey = input.secret("RUNPOD_API_KEY");
 

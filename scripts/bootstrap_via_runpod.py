@@ -41,10 +41,10 @@ write_status starting "installing tools"
 trap 'write_status error "bootstrap failed at line $LINENO"; serve' ERR
 apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y git git-lfs python3-pip
-git clone --depth 1 --branch "${GIT_REF}" "${REPO_URL}" /tmp/nsfw_prompts \
-  || git clone --depth 1 "$REPO_URL" /tmp/nsfw_prompts
-bash /tmp/nsfw_prompts/scripts/on_pod.sh
-python3 /tmp/nsfw_prompts/scripts/validate_volume.py
+git clone --depth 1 --branch "${GIT_REF}" "${REPO_URL}" /workspace/nsfw_prompts \
+  || git clone --depth 1 "$REPO_URL" /workspace/nsfw_prompts
+bash /workspace/nsfw_prompts/scripts/on_pod.sh
+python3 /workspace/nsfw_prompts/scripts/validate_volume.py
 rm -rf /workspace/.hf /workspace/models/.hf-cache /workspace/models/.hf-tmp
 printf 'ok\n' > /workspace/minimax-bootstrap.ok
 write_status ok "weights ready"

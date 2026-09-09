@@ -106,7 +106,7 @@ def run_job(event: dict) -> dict:
             local_path.write_bytes(data)
             entry = {"filename": item["filename"]}
             if s3_configured():
-                key = f"minimax-r2v/{job_id}/{item['filename']}"
+                key = f"References/{job_id}/{item['filename']}"
                 url = upload_file(local_path, key)
                 entry["type"] = "s3_url"
                 entry["data"] = url
