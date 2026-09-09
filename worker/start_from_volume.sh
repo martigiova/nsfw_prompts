@@ -19,6 +19,14 @@ export WORKFLOW_PATH="${WORKFLOW_PATH:-${APP_ROOT}/workflows/api_template.json}"
 
 COMFY_ROOT="${COMFY_ROOT:-/ComfyUI}"
 if [[ ! -f "${COMFY_ROOT}/main.py" ]]; then
+  for candidate in /ComfyUI /workspace/ComfyUI; do
+    if [[ -f "${candidate}/main.py" ]]; then
+      COMFY_ROOT="${candidate}"
+      break
+    fi
+  done
+fi
+if [[ ! -f "${COMFY_ROOT}/main.py" ]]; then
   echo "ComfyUI main.py not found at ${COMFY_ROOT}" >&2
   exit 1
 fi
@@ -26,6 +34,22 @@ if [[ ! -d "${APP_ROOT}/minimax_r2v" ]]; then
   echo "Worker code not found at ${APP_ROOT}. Bootstrap the volume from this repo." >&2
   exit 1
 fi
+
+# MiniMax ships ComfyUI-Login. Without a PASSWORD file it 401s /prompt and
+# logs "Please set up your password..." on every health check.
+disable_comfy_login() {
+  local root node dest
+  for root in "${COMFY_ROOT}" /ComfyUI /workspace/ComfyUI; do
+    node="${root}/custom_nodes/ComfyUI-Login"
+    if [[ -d "${node}" ]]; then
+      dest="${root}/custom_nodes/.disabled-ComfyUI-Login"
+      echo "minimax-r2v: disabling ComfyUI-Login at ${node}"
+      rm -rf "${dest}"
+      mv "${node}" "${dest}"
+    fi
+  done
+}
+disable_comfy_login
 
 export COMFY_INPUT_DIR="${COMFY_INPUT_DIR:-${COMFY_ROOT}/input}"
 mkdir -p "${COMFY_INPUT_DIR}" "${COMFY_ROOT}/output"
@@ -58,6 +82,37 @@ if ! kill -0 "${COMFY_PID}" 2>/dev/null; then
   echo "minimax-r2v: ComfyUI exited during startup" >&2
   wait "${COMFY_PID}" || true
   exit 1
+fi
+
+run_one_shot() {
+  echo "minimax-r2v: one-shot Airtable record ${AIRTABLE_RECORD_ID}"
+  set +e
+  python - <<'PY'
+import json
+import os
+import sys
+
+from minimax_r2v.run import run_job
+
+job_id = os.environ.get("RUNPOD_POD_ID") or os.environ.get("RUNPOD_JOB_ID") or "pod"
+result = run_job(
+    {
+        "id": job_id,
+        "input": {"airtable_record_id": os.environ["AIRTABLE_RECORD_ID"]},
+    }
+)
+print(json.dumps(result)[:8000], flush=True)
+sys.exit(1 if result.get("error") else 0)
+PY
+  status=$?
+  set -e
+  kill "${COMFY_PID}" 2>/dev/null || true
+  wait "${COMFY_PID}" 2>/dev/null || true
+  exit "${status}"
+}
+
+if [[ -n "${AIRTABLE_RECORD_ID:-}" ]]; then
+  run_one_shot
 fi
 
 echo "minimax-r2v: starting RunPod handler"

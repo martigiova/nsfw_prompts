@@ -70,6 +70,9 @@ def worker_env() -> dict[str, str]:
         "COMFY_WAIT_TIMEOUT": os.environ.get("COMFY_WAIT_TIMEOUT", "1650"),
         "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Minimax"),
         "APP_ROOT": os.environ.get("APP_ROOT", "/runpod-volume/nsfw_prompts"),
+        # MiniMax /start.sh starts code-server when this is set. Harmless if we
+        # replace the entrypoint; required if the GUI script still runs.
+        "PASSWORD": os.environ.get("PASSWORD", "minimax-r2v"),
     }
     for key in keys:
         value = os.environ.get(key)
@@ -141,10 +144,26 @@ def v1_template_payload(image: str, *, patch: bool) -> dict:
 WORKER_CMD = (
     "set -euo pipefail; "
     "for d in /runpod-volume/nsfw_prompts /workspace/nsfw_prompts; do "
-    "  if [ -f \"$d/worker/start_from_volume.sh\" ]; then exec /bin/bash \"$d/worker/start_from_volume.sh\"; fi; "
+    "  if [ -d \"$d/minimax_r2v\" ]; then "
+    "    if command -v git >/dev/null 2>&1 && [ -d \"$d/.git\" ]; then "
+    "      git -C \"$d\" fetch --depth 1 origin cursor/minimax-runpod-serverless-9e74 || true; "
+    "      git -C \"$d\" reset --hard FETCH_HEAD || true; "
+    "    fi; "
+    "    exec /bin/bash \"$d/worker/start_from_volume.sh\"; "
+    "  fi; "
     "done; "
     "echo nsfw_prompts not found on the Network Volume; ls -la /runpod-volume /workspace || true; exit 1"
 )
+
+
+def worker_start_args() -> str:
+    """Replace the MiniMax image CMD (`/start.sh`), which ignores extra args.
+
+    v2 `args` is a string. A JSON object with `entrypoint` + `cmd` is the
+    format the RunPod console uses to override both ENTRYPOINT and CMD.
+    A plain `/bin/bash -lc ...` string is appended to `/start.sh` instead.
+    """
+    return json.dumps({"entrypoint": ["/bin/bash", "-lc"], "cmd": [WORKER_CMD]})
 
 
 def _v2_request(method: str, path: str, payload: dict) -> dict:
@@ -179,15 +198,17 @@ def set_worker_cmd_v2(endpoint_id: str) -> dict:
     """Replace the MiniMax image CMD (/start.sh GUI) with the volume handler.
 
     v2 serverless only accepts `args` as a string; it does not honor template
-    dockerEntrypoint. Without this, workers loop on the GUI password prompt.
+    dockerEntrypoint. A plain bash string is passed *to* `/start.sh` and
+    ignored. JSON `{entrypoint, cmd}` is the console override format.
     """
+    env = worker_env()
     return _v2_request(
         "PATCH",
         f"/v2/serverless/{endpoint_id}",
         {
-            # Plain command string replaces image CMD `/start.sh` (the GUI).
-            "args": f"/bin/bash -lc {json.dumps(WORKER_CMD)}",
+            "args": worker_start_args(),
             "disk": int(os.environ.get("CONTAINER_DISK_GB", "250")),
+            "env": env,
         },
     )
 

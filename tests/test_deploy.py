@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from scripts.bootstrap_via_runpod import (
@@ -91,11 +92,15 @@ def test_v1_template_patch_omits_jupyter_flags():
 
 
 def test_worker_cmd_replaces_minimax_gui_start():
-    from scripts.provision_runpod import WORKER_CMD
+    from scripts.provision_runpod import WORKER_CMD, worker_start_args
 
     assert "start_from_volume.sh" in WORKER_CMD
     assert "/start.sh" not in WORKER_CMD
     assert "/runpod-volume/nsfw_prompts" in WORKER_CMD
+    assert "git -C" in WORKER_CMD
+    parsed = json.loads(worker_start_args())
+    assert parsed["entrypoint"] == ["/bin/bash", "-lc"]
+    assert parsed["cmd"] == [WORKER_CMD]
 
 
 def test_template_runs_handler_from_volume():
@@ -112,6 +117,10 @@ def test_volume_start_script_uses_repo_on_volume():
     text = Path("worker/start_from_volume.sh").read_text(encoding="utf-8")
     assert "/runpod-volume/nsfw_prompts" in text
     assert "handler.py" in text
+    assert "disable_comfy_login" in text
+    assert "ComfyUI-Login" in text
+    assert "AIRTABLE_RECORD_ID" in text
+    assert "one-shot Airtable record" in text
     text = Path("scripts/on_pod.sh").read_text(encoding="utf-8")
     assert "validate_volume.py" in text
     assert "validate_volume.py || true" not in text

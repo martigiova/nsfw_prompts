@@ -1,4 +1,5 @@
 from scripts.provision_runpod import GPU_TYPE_IDS, patch_endpoint, worker_env
+from scripts.run_gpu_pod_job import pod_body
 
 
 def test_gpu_type_ids_match_runpod_enum():
@@ -52,3 +53,19 @@ def test_worker_env_copies_airtable_field_names(monkeypatch):
     env = worker_env()
     assert env["AIRTABLE_STATUS_FIELD"] == "Stato"
     assert env["AIRTABLE_OUTPUT_FIELD"] == "Video"
+
+
+def test_gpu_pod_job_overrides_minimax_start(monkeypatch):
+    monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
+    monkeypatch.delenv("RUNPOD_DATA_CENTER_ID", raising=False)
+    monkeypatch.setenv("RUNPOD_NETWORK_VOLUME_ID", "vol_123")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    body = pod_body("recABC")
+    assert body["dockerEntrypoint"] == ["/bin/bash", "-lc"]
+    assert "start_from_volume.sh" in body["dockerStartCmd"][0]
+    assert "/start.sh" not in body["dockerStartCmd"][0]
+    assert body["volumeMountPath"] == "/runpod-volume"
+    assert body["env"]["AIRTABLE_RECORD_ID"] == "recABC"
+    assert body["gpuTypeIds"][0] == "NVIDIA RTX PRO 6000 Blackwell Server Edition"
+    assert body["containerDiskInGb"] == 250

@@ -61,7 +61,9 @@ bash /workspace/nsfw_prompts/scripts/on_pod.sh
 
 ## 2. Immagine worker
 
-Preferita: usa **direttamente** `ls250824/run-comfyui-minimax:08092026` (su Docker Hub **non esiste** `:latest`). Il codice worker sta sul Network Volume in `nsfw_prompts/`; non serve build/push di un’immagine custom. L’ENTRYPOINT è `worker/start_from_volume.sh`.
+Preferita: usa **direttamente** `ls250824/run-comfyui-minimax:08092026` (su Docker Hub **non esiste** `:latest`). Il codice worker sta sul Network Volume in `nsfw_prompts/`; non serve build/push di un’immagine custom.
+
+L’immagine GUI ha `CMD ["/start.sh"]` (provisioning ComfyUI + Code Server) e **ignora** gli argomenti extra. Il provisioning scrive `args` in JSON `{"entrypoint":["/bin/bash","-lc"],"cmd":[...]}` così parte `worker/start_from_volume.sh`. Quello script disattiva `ComfyUI-Login` (altrimenti `/prompt` risponde 401).
 
 ```bash
 docker build -t YOURUSER/minimax-h3-r2v:1.0 -f worker/Dockerfile.template .
@@ -104,6 +106,8 @@ Inserisci una riga, metti `Status=Queued`. L’automazione nativa Airtable **non
 
 ```bash
 python scripts/submit_airtable_job.py --image https://.../face.jpg --prompt "The person from <Picture 1> smiles"
+# fallback se il serverless resta sul CMD GUI:
+CONFIRM_GPU_JOB=1 python scripts/run_gpu_pod_job.py --record recXXXXXXXX
 ```
 
 Il worker legge gli allegati (audio opzionale incluso) e riscrive il record a fine generazione.
