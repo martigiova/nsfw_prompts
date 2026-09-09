@@ -67,6 +67,22 @@ fi
 
 python -m pip install --quiet --disable-pip-version-check runpod boto3 requests
 
+ensure_refpack() {
+  local dest="${COMFY_ROOT}/custom_nodes/ComfyUI-MiniMaxRefPack"
+  local ref="${REFPACK_REF:-7012734eabf6f98063d6eaf8ce1f9264ee803664}"
+  if [[ -d "${dest}" ]]; then
+    echo "minimax-r2v: ComfyUI-MiniMaxRefPack already present"
+    return 0
+  fi
+  echo "minimax-r2v: cloning ComfyUI-MiniMaxRefPack ${ref}"
+  git clone https://github.com/Hearmeman24/ComfyUI-MiniMaxRefPack.git "${dest}"
+  git -C "${dest}" checkout "${ref}"
+  if [[ -f "${dest}/requirements.txt" ]]; then
+    python -m pip install --quiet --disable-pip-version-check -r "${dest}/requirements.txt"
+  fi
+}
+ensure_refpack
+
 if [[ "${SKIP_VOLUME_CHECK:-0}" != "1" ]]; then
   echo "minimax-r2v: checking Network Volume weights"
   python - <<'PY'

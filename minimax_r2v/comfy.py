@@ -58,7 +58,9 @@ class ComfyClient:
             json=payload,
             timeout=self.timeout,
         )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            detail = (response.text or "")[:2000]
+            raise RuntimeError(f"ComfyUI /prompt {response.status_code}: {detail}")
         data = response.json()
         if "error" in data:
             raise RuntimeError(f"ComfyUI rejected the prompt: {data['error']}")

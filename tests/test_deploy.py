@@ -116,7 +116,8 @@ def test_template_runs_handler_from_volume():
 def test_volume_start_script_uses_repo_on_volume():
     text = Path("worker/start_from_volume.sh").read_text(encoding="utf-8")
     assert "/runpod-volume/nsfw_prompts" in text
-    assert "handler.py" in text
+    assert "ensure_refpack" in text
+    assert "ComfyUI-MiniMaxRefPack" in text
     assert "seed_comfy_login" in text
     assert "ComfyUI-Login" in text
     assert "COMFY_LOGIN_TOKEN" in text
