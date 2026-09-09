@@ -34,7 +34,7 @@ Tutti da [`Comfy-Org/MiniMax-H3`](https://huggingface.co/Comfy-Org/MiniMax-H3), 
 | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` | `models/loras` | ~2 GB |
 | `hmmotion_minimax-h3_epoch40.safetensors` | `models/loras` | già sul pod GUI |
 
-Volume consigliato: **100–150 GB**, stessa regione dell’endpoint. GPU: RTX 4090 24 GB minimo, meglio 48 GB. Timeout esecuzione: 30 minuti. `workersMin=0`, `idleTimeout` 60–120 s così i pesi restano in VRAM tra un job e l’altro.
+Volume consigliato: **100–150 GB**, stessa data center dell’endpoint. **Non** pinna EU-RO-1 se il catalogo Serverless 4090 è `LOW` (i worker restano `throttled`). `scripts/create_volume.py` sceglie un DC con stock `HIGH` se `RUNPOD_DATA_CENTER_ID` è vuoto. GPU: RTX 4090 24 GB minimo, meglio 48 GB. Timeout esecuzione: 30 minuti. `workersMin=0`, `idleTimeout` 60–120 s così i pesi restano in VRAM tra un job e l’altro.
 
 ## 1. Network volume (una volta)
 
@@ -68,6 +68,8 @@ docker build -t YOURUSER/minimax-h3-r2v:1.0 -f worker/Dockerfile.template .
 docker push YOURUSER/minimax-h3-r2v:1.0
 ```
 
+(Opzionale. Il provisioning default usa l’immagine pubblica + codice sul volume.)
+
 Alternativa più piccola, senza lo stack GUI: `worker/Dockerfile` da `runpod/worker-comfyui:5.10.0-base` + MiniMaxRefPack, VHS, rgthree.
 
 Il node `MiniMaxH3ReferencePack` risolve i file con `os.path.join(input_dir, filename)` dove `input_dir` è la cartella input di ComfyUI, non il volume. Il worker scarica gli allegati Airtable lì (`/ComfyUI/input` sul template, `/comfyui/input` su worker-comfyui).
@@ -81,6 +83,8 @@ Oppure, con le env in `.env.example`:
 ```bash
 python scripts/deploy.py --check
 python scripts/provision_runpod.py
+# oppure, per spostare un endpoint già creato su un volume nuovo:
+python scripts/provision_runpod.py --update
 ```
 
 `provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA GeForce RTX 4090`, non `NVIDIA RTX 4090`) e attacca l’endpoint alla **stessa data center del Network Volume**. Env obbligatorie sull’endpoint:
@@ -96,7 +100,13 @@ Schema e script: `airtable/SCHEMA.md` e `airtable/submit_job.js`.
 
 Campi: Prompt, Image, Video, Audio (opzionale), Duration, Aspect, Auto Prompt, Status, Output, Job ID, Errore.
 
-Inserisci una riga, metti `Status=Queued`. L’automazione manda solo l’id del record (secret `RUNPOD_ENDPOINT_ID` + `RUNPOD_API_KEY`): il worker legge gli allegati (audio opzionale incluso) e riscrive il record a fine generazione.
+Inserisci una riga, metti `Status=Queued`. L’automazione nativa Airtable **non si crea via API**: incolla `airtable/submit_job.js` (trigger Status=Queued, secrets `RUNPOD_ENDPOINT_ID` + `RUNPOD_API_KEY`). In alternativa, dallo stesso repo:
+
+```bash
+python scripts/submit_airtable_job.py --image https://.../face.jpg --prompt "The person from <Picture 1> smiles"
+```
+
+Il worker legge gli allegati (audio opzionale incluso) e riscrive il record a fine generazione.
 
 L’mp4 MiniMax supera i 5 MB: Airtable accetta allegati grandi solo da **URL pubblico**. Serve S3 o Cloudflare R2.
 

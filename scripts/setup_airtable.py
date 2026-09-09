@@ -19,6 +19,8 @@ FIELDS = (
     ("Image", {"type": "multipleAttachments"}),
     ("Video", {"type": "multipleAttachments"}),
     ("Audio", {"type": "multipleAttachments"}),
+    ("Duration", {"type": "number", "options": {"precision": 1}}),
+    ("Aspect", {"type": "singleLineText"}),
     ("Output", {"type": "url"}),
     ("Errore", {"type": "multilineText"}),
     ("Job ID", {"type": "singleLineText"}),
