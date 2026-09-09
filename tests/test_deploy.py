@@ -34,6 +34,8 @@ def test_check_reports_missing_groups(monkeypatch, capsys):
 
 
 def test_bootstrap_pod_is_cpu_with_volume(monkeypatch):
+    monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
+    monkeypatch.delenv("RUNPOD_DATA_CENTER_ID", raising=False)
     monkeypatch.setenv("RUNPOD_NETWORK_VOLUME_ID", "vol_123")
     monkeypatch.setenv("GIT_REF", "cursor/minimax-runpod-serverless-9e74")
     body = pod_body()
