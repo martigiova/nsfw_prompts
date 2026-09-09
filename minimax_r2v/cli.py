@@ -8,8 +8,6 @@ import os
 import sys
 from pathlib import Path
 
-import requests
-
 from minimax_r2v.download import download_weights
 from minimax_r2v.graph import assert_workflow_links
 from minimax_r2v.payload import parse_job_input
@@ -93,6 +91,8 @@ def download_cmd(args: argparse.Namespace) -> int:
 
 
 def submit_cmd(args: argparse.Namespace) -> int:
+    import requests
+
     endpoint = os.environ.get("RUNPOD_ENDPOINT_ID") or args.endpoint
     api_key = os.environ.get("RUNPOD_API_KEY")
     if not endpoint or not api_key:

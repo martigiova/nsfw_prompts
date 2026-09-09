@@ -20,7 +20,7 @@ mkdir -p \
   "${MODELS}/loras" \
   "${MODELS}/vae_approx"
 
-python3 -m pip install -U "huggingface_hub[cli]" --break-system-packages
+python3 -m pip install -U "huggingface_hub[cli]" requests --break-system-packages
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"

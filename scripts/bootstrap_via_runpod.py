@@ -41,7 +41,7 @@ trap 'tail -c 1500 /var/minimax-bootstrap/log.txt 2>/dev/null | tr "\n" " " > /t
 exec > >(tee -a /var/minimax-bootstrap/log.txt) 2>&1
 apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y git git-lfs python3-pip
-python3 -m pip install -U pip "huggingface_hub[cli]"
+python3 -m pip install -U pip "huggingface_hub[cli]" requests
 if [[ -d /workspace/nsfw_prompts/.git ]]; then
   git -C /workspace/nsfw_prompts fetch --depth 1 origin "${GIT_REF}" || true
   git -C /workspace/nsfw_prompts checkout FETCH_HEAD || true
