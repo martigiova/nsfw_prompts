@@ -85,6 +85,7 @@ def test_template_runs_handler_from_volume():
     assert body["dockerEntrypoint"][1] == "-lc"
     assert "start_from_volume.sh" in body["dockerEntrypoint"][2]
     assert body["dockerStartCmd"] == []
+    assert body["containerDiskInGb"] == 250
 
 
 def test_volume_start_script_uses_repo_on_volume():

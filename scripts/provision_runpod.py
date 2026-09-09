@@ -10,9 +10,10 @@ import sys
 from scripts.runpod_http import request, resolve_data_center
 
 # Exact enum values from POST /endpoints (wrong names are rejected).
-# Order is rent preference. 4090 first (cheapest 24 GB that runs MiniMax
-# int8); then 48/80 GB cards; then other 24 GB fallbacks.
+# Order is rent preference. RTX PRO 6000 (96 GB) is what we use for MiniMax
+# in the GUI; 4090/A6000 remain fallbacks if PRO 6000 is out of stock.
 GPU_TYPE_IDS = [
+    "NVIDIA RTX PRO 6000 Blackwell Server Edition",
     "NVIDIA GeForce RTX 4090",
     "NVIDIA RTX A6000",
     "NVIDIA RTX 6000 Ada Generation",
@@ -104,8 +105,8 @@ def template_body(image: str) -> dict:
         "name": os.environ.get("RUNPOD_TEMPLATE_NAME", "minimax-h3-r2v-worker"),
         "imageName": image,
         "isServerless": True,
-        "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "40")),
-        "volumeInGb": 0,
+        "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "250")),
+        "volumeInGb": int(os.environ.get("TEMPLATE_VOLUME_GB", "0")),
         "volumeMountPath": "/runpod-volume",
         "dockerEntrypoint": ["/bin/bash", "-lc", VOLUME_ENTRYPOINT],
         "dockerStartCmd": [],
@@ -144,6 +145,11 @@ def _print_endpoint(endpoint: dict) -> str | None:
     return endpoint_id
 
 
+def patch_template(template_id: str, image: str) -> dict:
+    """Resize container disk / env on the live serverless template."""
+    return request("PATCH", f"/templates/{template_id}", template_body(image))
+
+
 def patch_endpoint(endpoint_id: str, volume: str) -> dict:
     """Move an existing endpoint onto a (possibly new) Network Volume."""
     body: dict = {
@@ -177,6 +183,24 @@ def main() -> int:
         if not volume:
             print("Set RUNPOD_NETWORK_VOLUME_ID", file=sys.stderr)
             return 1
+        template_id = os.environ.get("RUNPOD_TEMPLATE_ID", "").strip()
+        if not template_id:
+            existing = request("GET", f"/endpoints/{update_id}")
+            template_id = existing.get("templateId") or ""
+        if image and template_id:
+            template = patch_template(template_id, image)
+            print(
+                "Template:",
+                json.dumps(
+                    {
+                        "id": template.get("id"),
+                        "containerDiskInGb": template.get("containerDiskInGb"),
+                        "volumeInGb": template.get("volumeInGb"),
+                        "imageName": template.get("imageName"),
+                    },
+                    indent=2,
+                ),
+            )
         endpoint = patch_endpoint(update_id, volume)
         _print_endpoint(endpoint)
         return 0
