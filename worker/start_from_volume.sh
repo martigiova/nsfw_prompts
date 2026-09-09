@@ -125,7 +125,10 @@ result = run_job(
     }
 )
 print(json.dumps(result)[:8000], flush=True)
-sys.exit(1 if result.get("error") else 0)
+if result.get("error"):
+    sys.exit(1)
+# Keep PID 1 alive so RunPod does not restart the container and re-run the job.
+os.execvp("sleep", ["sleep", "infinity"])
 PY
   status=$?
   set -e

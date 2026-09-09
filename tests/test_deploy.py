@@ -123,6 +123,8 @@ def test_volume_start_script_uses_repo_on_volume():
     assert "COMFY_LOGIN_TOKEN" in text
     assert "AIRTABLE_RECORD_ID" in text
     assert "one-shot Airtable record" in text
+    assert "sleep" in text
+    assert "infinity" in text
     text = Path("scripts/on_pod.sh").read_text(encoding="utf-8")
     assert "validate_volume.py" in text
     assert "validate_volume.py || true" not in text
