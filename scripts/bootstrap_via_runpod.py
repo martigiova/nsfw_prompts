@@ -29,26 +29,32 @@ TERMINAL_POD_STATUS = {"EXITED", "TERMINATED", "DEAD", "FAILED"}
 BOOTSTRAP_SCRIPT = r"""set -euo pipefail
 export VOLUME_ROOT=/workspace
 export HF_HOME=/workspace/.hf
+export PIP_BREAK_SYSTEM_PACKAGES=1
 STATUS_DIR=/var/minimax-bootstrap
 mkdir -p /workspace "$STATUS_DIR"
 write_status() {
   python3 -c 'import json,sys; print(json.dumps({"state":sys.argv[1],"message":sys.argv[2][:2000]}))' "$1" "${2:-}" > "$STATUS_DIR/status.json"
 }
-serve() {
-  exec python3 -m http.server 8888 --bind 0.0.0.0 --directory "$STATUS_DIR"
-}
+python3 -m http.server 8888 --bind 0.0.0.0 --directory "$STATUS_DIR" &
 write_status starting "installing tools"
-trap 'write_status error "bootstrap failed at line $LINENO"; serve' ERR
+trap 'tail -c 1500 /var/minimax-bootstrap/log.txt 2>/dev/null | tr "\n" " " > /tmp/tail.txt; write_status error "line $LINENO: $(cat /tmp/tail.txt)"; sleep infinity' ERR
+exec > >(tee -a /var/minimax-bootstrap/log.txt) 2>&1
 apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y git git-lfs python3-pip
-git clone --depth 1 --branch "${GIT_REF}" "${REPO_URL}" /workspace/nsfw_prompts \
-  || git clone --depth 1 "$REPO_URL" /workspace/nsfw_prompts
+python3 -m pip install -U pip "huggingface_hub[cli]"
+if [[ -d /workspace/nsfw_prompts/.git ]]; then
+  git -C /workspace/nsfw_prompts fetch --depth 1 origin "${GIT_REF}" || true
+  git -C /workspace/nsfw_prompts checkout FETCH_HEAD || true
+else
+  git clone --depth 1 --branch "${GIT_REF}" "${REPO_URL}" /workspace/nsfw_prompts \
+    || git clone --depth 1 "$REPO_URL" /workspace/nsfw_prompts
+fi
 bash /workspace/nsfw_prompts/scripts/on_pod.sh
 python3 /workspace/nsfw_prompts/scripts/validate_volume.py
 rm -rf /workspace/.hf /workspace/models/.hf-cache /workspace/models/.hf-tmp
 printf 'ok\n' > /workspace/minimax-bootstrap.ok
 write_status ok "weights ready"
-serve
+wait
 """
 
 
@@ -113,7 +119,11 @@ def _proxy_url(pod_id: str) -> str:
 def _read_status(pod_id: str) -> dict | None:
     url = _proxy_url(pod_id)
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "minimax-r2v/1.0", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
             return json.loads(response.read().decode("utf-8", errors="replace"))
     except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, ValueError):
         return None
