@@ -20,6 +20,8 @@ def model_roots() -> list[Path]:
         [
             _SERVERLESS_ROOT / "models",
             _SERVERLESS_ROOT / "ComfyUI" / "models",
+            Path("/workspace") / "models",
+            Path("/workspace") / "ComfyUI" / "models",
         ]
     )
     seen: set[Path] = set()
@@ -35,7 +37,7 @@ def volume_is_present() -> bool:
     """True when a Network Volume (or VOLUME_ROOT) is mounted."""
     if os.environ.get("VOLUME_ROOT"):
         return Path(os.environ["VOLUME_ROOT"]).exists()
-    return _SERVERLESS_ROOT.exists()
+    return _SERVERLESS_ROOT.exists() or Path("/workspace/models").exists()
 
 
 def find_weight(rel: str, roots: list[Path] | None = None) -> Path | None:

@@ -69,6 +69,28 @@ def worker_env() -> dict[str, str]:
     return env
 
 
+VOLUME_ENTRYPOINT = r"""set -euo pipefail
+ROOT=""
+for d in /runpod-volume/nsfw_prompts /workspace/nsfw_prompts; do
+  if [ -d "$d/minimax_r2v" ]; then ROOT=$d; break; fi
+done
+if [ -z "$ROOT" ]; then
+  echo "nsfw_prompts not found on the Network Volume"
+  ls -la /runpod-volume /workspace || true
+  exit 1
+fi
+export APP_ROOT="$ROOT"
+if [ -d /runpod-volume/models ]; then export VOLUME_ROOT=/runpod-volume
+elif [ -d /workspace/models ]; then export VOLUME_ROOT=/workspace
+fi
+if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
+  git -C "$ROOT" fetch --depth 1 origin cursor/minimax-runpod-serverless-9e74 || true
+  git -C "$ROOT" reset --hard FETCH_HEAD || true
+fi
+exec /bin/bash "$ROOT/worker/start_from_volume.sh"
+"""
+
+
 def template_body(image: str) -> dict:
     return {
         "name": os.environ.get("RUNPOD_TEMPLATE_NAME", "minimax-h3-r2v-worker"),
@@ -77,11 +99,7 @@ def template_body(image: str) -> dict:
         "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "40")),
         "volumeInGb": 0,
         "volumeMountPath": "/runpod-volume",
-        # Public MiniMax image: handler lives on the Network Volume.
-        "dockerEntrypoint": [
-            "/bin/bash",
-            "/runpod-volume/nsfw_prompts/worker/start_from_volume.sh",
-        ],
+        "dockerEntrypoint": ["/bin/bash", "-lc", VOLUME_ENTRYPOINT],
         "dockerStartCmd": [],
         "env": worker_env(),
     }

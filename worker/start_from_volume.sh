@@ -4,6 +4,15 @@
 set -euo pipefail
 
 export PYTHONUNBUFFERED=1
+APP_ROOT="${APP_ROOT:-}"
+if [[ -z "${APP_ROOT}" ]]; then
+  for candidate in /runpod-volume/nsfw_prompts /workspace/nsfw_prompts; do
+    if [[ -d "${candidate}/minimax_r2v" ]]; then
+      APP_ROOT="${candidate}"
+      break
+    fi
+  done
+fi
 APP_ROOT="${APP_ROOT:-/runpod-volume/nsfw_prompts}"
 export PYTHONPATH="${APP_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export WORKFLOW_PATH="${WORKFLOW_PATH:-${APP_ROOT}/workflows/api_template.json}"

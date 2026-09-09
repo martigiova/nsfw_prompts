@@ -16,9 +16,26 @@ runpod_worker_comfy:
   audio_encoders: models/audio_encoders/
   model_patches: models/model_patches/
 
-# Same Network Volume as a GUI MiniMax pod: models live under ComfyUI/models
 comfyui_on_volume:
   base_path: /runpod-volume/ComfyUI
+  checkpoints: models/checkpoints/
+  clip: models/text_encoders/
+  clip_vision: models/clip_vision/
+  configs: models/configs/
+  controlnet: models/controlnet/
+  embeddings: models/embeddings/
+  loras: models/loras/
+  upscale_models: models/upscale_models/
+  vae: models/vae/
+  unet: models/diffusion_models/
+  diffusion_models: models/diffusion_models/
+  text_encoders: models/text_encoders/
+  vae_approx: models/vae_approx/
+  audio_encoders: models/audio_encoders/
+  model_patches: models/model_patches/
+
+workspace_models:
+  base_path: /workspace
   checkpoints: models/checkpoints/
   clip: models/text_encoders/
   clip_vision: models/clip_vision/

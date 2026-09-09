@@ -81,10 +81,9 @@ def test_interpret_status_fails_fast_on_exited_pod():
 
 def test_template_runs_handler_from_volume():
     body = template_body("ls250824/run-comfyui-minimax:08092026")
-    assert body["dockerEntrypoint"] == [
-        "/bin/bash",
-        "/runpod-volume/nsfw_prompts/worker/start_from_volume.sh",
-    ]
+    assert body["dockerEntrypoint"][0] == "/bin/bash"
+    assert body["dockerEntrypoint"][1] == "-lc"
+    assert "start_from_volume.sh" in body["dockerEntrypoint"][2]
     assert body["dockerStartCmd"] == []
 
 
