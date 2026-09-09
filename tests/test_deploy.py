@@ -117,8 +117,9 @@ def test_volume_start_script_uses_repo_on_volume():
     text = Path("worker/start_from_volume.sh").read_text(encoding="utf-8")
     assert "/runpod-volume/nsfw_prompts" in text
     assert "handler.py" in text
-    assert "disable_comfy_login" in text
+    assert "seed_comfy_login" in text
     assert "ComfyUI-Login" in text
+    assert "COMFY_LOGIN_TOKEN" in text
     assert "AIRTABLE_RECORD_ID" in text
     assert "one-shot Airtable record" in text
     text = Path("scripts/on_pod.sh").read_text(encoding="utf-8")

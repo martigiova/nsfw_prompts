@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from typing import Any
@@ -12,16 +13,35 @@ DEFAULT_HOST = "127.0.0.1:8188"
 VIDEO_KEYS = ("gifs", "videos", "video", "images", "animated")
 
 
+def _login_token() -> str:
+    return os.environ.get("COMFY_LOGIN_TOKEN", "minimax-r2v")
+
+
 class ComfyClient:
     def __init__(self, host: str = DEFAULT_HOST, timeout: int = 30) -> None:
         self.base = f"http://{host}"
         self.timeout = timeout
+        self.session = requests.Session()
+        token = _login_token()
+        # MiniMax image ships ComfyUI-Login; Bearer + ?token= unlock /prompt.
+        self.session.headers.update({"Authorization": f"Bearer {token}"})
+        self._token = token
+
+    def _get(self, path: str, **kwargs: Any) -> requests.Response:
+        params = dict(kwargs.pop("params", None) or {})
+        params.setdefault("token", self._token)
+        return self.session.get(f"{self.base}{path}", params=params, **kwargs)
+
+    def _post(self, path: str, **kwargs: Any) -> requests.Response:
+        params = dict(kwargs.pop("params", None) or {})
+        params.setdefault("token", self._token)
+        return self.session.post(f"{self.base}{path}", params=params, **kwargs)
 
     def wait_until_ready(self, retries: int = 600, interval: float = 1.0) -> None:
         last_error = None
         for _ in range(retries):
             try:
-                response = requests.get(f"{self.base}/system_stats", timeout=5)
+                response = self._get("/system_stats", timeout=5)
                 if response.status_code == 200:
                     return
                 last_error = f"status {response.status_code}"
@@ -33,8 +53,8 @@ class ComfyClient:
     def queue_prompt(self, workflow: dict[str, Any], client_id: str | None = None) -> str:
         client_id = client_id or str(uuid.uuid4())
         payload = {"prompt": workflow, "client_id": client_id}
-        response = requests.post(
-            f"{self.base}/prompt",
+        response = self._post(
+            "/prompt",
             json=payload,
             timeout=self.timeout,
         )
@@ -69,7 +89,7 @@ class ComfyClient:
         raise TimeoutError(f"Timed out waiting for prompt {prompt_id}")
 
     def get_history(self, prompt_id: str) -> dict[str, Any]:
-        response = requests.get(f"{self.base}/history/{prompt_id}", timeout=self.timeout)
+        response = self._get(f"/history/{prompt_id}", timeout=self.timeout)
         response.raise_for_status()
         return response.json()
 
@@ -97,6 +117,6 @@ class ComfyClient:
 
     def download_file(self, filename: str, subfolder: str = "", file_type: str = "output") -> bytes:
         params = {"filename": filename, "subfolder": subfolder, "type": file_type}
-        response = requests.get(f"{self.base}/view", params=params, timeout=120)
+        response = self._get("/view", params=params, timeout=120)
         response.raise_for_status()
         return response.content

@@ -16,7 +16,9 @@ class FakeResponse:
 
 
 def test_queue_prompt_raises_on_node_errors(monkeypatch):
-    def fake_post(url, json=None, timeout=30):
+    client = ComfyClient()
+
+    def fake_post(path, **kwargs):
         return FakeResponse(
             {
                 "prompt_id": "p1",
@@ -24,9 +26,9 @@ def test_queue_prompt_raises_on_node_errors(monkeypatch):
             }
         )
 
-    monkeypatch.setattr("minimax_r2v.comfy.requests.post", fake_post)
+    monkeypatch.setattr(client, "_post", fake_post)
     try:
-        ComfyClient().queue_prompt({"1": {}})
+        client.queue_prompt({"1": {}})
         raise AssertionError("should have raised")
     except RuntimeError as exc:
         assert "node_errors" in str(exc)

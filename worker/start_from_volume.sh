@@ -37,19 +37,26 @@ fi
 
 # MiniMax ships ComfyUI-Login. Without a PASSWORD file it 401s /prompt and
 # logs "Please set up your password..." on every health check.
-disable_comfy_login() {
+seed_comfy_login() {
   local root node dest
+  local token="${COMFY_LOGIN_TOKEN:-minimax-r2v}"
+  export COMFY_LOGIN_TOKEN="${token}"
   for root in "${COMFY_ROOT}" /ComfyUI /workspace/ComfyUI; do
-    node="${root}/custom_nodes/ComfyUI-Login"
-    if [[ -d "${node}" ]]; then
-      dest="${root}/custom_nodes/.disabled-ComfyUI-Login"
-      echo "minimax-r2v: disabling ComfyUI-Login at ${node}"
-      rm -rf "${dest}"
-      mv "${node}" "${dest}"
-    fi
+    [[ -d "${root}" ]] || continue
+    for node in "${root}/custom_nodes/ComfyUI-Login" "${root}/custom_nodes/comfyui-login"; do
+      if [[ -d "${node}" ]]; then
+        dest="${root}/custom_nodes/.disabled-ComfyUI-Login"
+        echo "minimax-r2v: disabling ComfyUI-Login at ${node}"
+        rm -rf "${dest}"
+        mv "${node}" "${dest}" || rm -rf "${node}"
+      fi
+    done
+    mkdir -p "${root}/login"
+    printf '%s\nworker\n' "${token}" > "${root}/login/PASSWORD"
+    touch "${root}/login/GUEST_MODE"
   done
 }
-disable_comfy_login
+seed_comfy_login
 
 export COMFY_INPUT_DIR="${COMFY_INPUT_DIR:-${COMFY_ROOT}/input}"
 mkdir -p "${COMFY_INPUT_DIR}" "${COMFY_ROOT}/output"

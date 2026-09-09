@@ -73,6 +73,41 @@ def _serve():
     return server, host
 
 
+def test_comfy_client_sends_login_token(monkeypatch):
+    seen = {}
+
+    class FakeComfyHandler(BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            return
+
+        def do_GET(self):
+            seen["auth"] = self.headers.get("Authorization")
+            parsed = urlparse(self.path)
+            seen["query"] = parsed.query
+            data = json.dumps({"system": {"comfyui": "ok"}}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_POST(self):
+            self.send_response(200)
+            self.end_headers()
+
+    monkeypatch.setenv("COMFY_LOGIN_TOKEN", "secret-token")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), FakeComfyHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        client = ComfyClient(f"127.0.0.1:{server.server_address[1]}")
+        client.wait_until_ready(retries=5, interval=0.01)
+    finally:
+        server.shutdown()
+    assert seen["auth"] == "Bearer secret-token"
+    assert "token=secret-token" in seen["query"]
+
+
 def test_comfy_client_over_http():
     server, host = _serve()
     try:
