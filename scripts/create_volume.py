@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.runpod_catalog import pick_serverless_dc
 from scripts.runpod_http import request
 
 
@@ -37,10 +38,14 @@ def main() -> int:
         print(json.dumps(found, indent=2))
         print(f"RUNPOD_NETWORK_VOLUME_ID={found['id']}")
         return 0
+    data_center = os.environ.get("RUNPOD_DATA_CENTER_ID", "").strip()
+    if not data_center:
+        data_center = pick_serverless_dc()
+        print(f"Picked data center {data_center} (Serverless {os.environ.get('RUNPOD_GPU_TYPE', 'NVIDIA GeForce RTX 4090')} stock)", file=sys.stderr)
     body = {
         "name": name,
         "size": int(os.environ.get("RUNPOD_VOLUME_GB", "120")),
-        "dataCenterId": os.environ.get("RUNPOD_DATA_CENTER_ID", "EU-RO-1"),
+        "dataCenterId": data_center,
     }
     created = request("POST", "/networkvolumes", body)
     print(json.dumps(created, indent=2))

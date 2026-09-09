@@ -10,11 +10,19 @@ import sys
 from scripts.runpod_http import request, resolve_data_center
 
 # Exact enum values from POST /endpoints (wrong names are rejected).
+# Order is rent preference. 4090 first (cheapest 24 GB that runs MiniMax
+# int8); then 48/80 GB cards; then other 24 GB fallbacks.
 GPU_TYPE_IDS = [
     "NVIDIA GeForce RTX 4090",
     "NVIDIA RTX A6000",
+    "NVIDIA RTX 6000 Ada Generation",
     "NVIDIA L40S",
+    "NVIDIA L40",
+    "NVIDIA A40",
     "NVIDIA A100 80GB PCIe",
+    "NVIDIA GeForce RTX 5090",
+    "NVIDIA RTX A5000",
+    "NVIDIA GeForce RTX 3090",
 ]
 
 
@@ -127,9 +135,52 @@ def endpoint_body(template_id: str, volume: str) -> dict:
     return body
 
 
+def _print_endpoint(endpoint: dict) -> str | None:
+    print("Endpoint:", json.dumps(endpoint, indent=2))
+    endpoint_id = endpoint.get("id") or endpoint.get("endpointId")
+    if endpoint_id:
+        print(f"Airtable RUNPOD_ENDPOINT_ID={endpoint_id}")
+        print(f"POST https://api.runpod.ai/v2/{endpoint_id}/run")
+    return endpoint_id
+
+
+def patch_endpoint(endpoint_id: str, volume: str) -> dict:
+    """Move an existing endpoint onto a (possibly new) Network Volume."""
+    body: dict = {
+        "gpuTypeIds": GPU_TYPE_IDS,
+        "gpuCount": 1,
+        "workersMin": int(os.environ.get("WORKERS_MIN", "0")),
+        "workersMax": int(os.environ.get("WORKERS_MAX", "2")),
+        "idleTimeout": int(os.environ.get("IDLE_TIMEOUT", "120")),
+        "executionTimeoutMs": int(os.environ.get("EXECUTION_TIMEOUT_MS", "1800000")),
+        "scalerType": "QUEUE_DELAY",
+        "scalerValue": 4,
+        "flashboot": True,
+    }
+    if volume:
+        body["networkVolumeId"] = volume
+        data_center = resolve_data_center(volume)
+        if data_center:
+            body["dataCenterIds"] = [data_center]
+    return request("PATCH", f"/endpoints/{endpoint_id}", body)
+
+
 def main() -> int:
     image = os.environ.get("DOCKER_IMAGE")
     volume = os.environ.get("RUNPOD_NETWORK_VOLUME_ID")
+    update_id = os.environ.get("RUNPOD_ENDPOINT_ID", "").strip()
+    if "--update" in sys.argv:
+        update_id = update_id or os.environ.get("RUNPOD_ENDPOINT_ID", "").strip()
+        if not update_id:
+            print("Set RUNPOD_ENDPOINT_ID to PATCH an existing endpoint", file=sys.stderr)
+            return 1
+        if not volume:
+            print("Set RUNPOD_NETWORK_VOLUME_ID", file=sys.stderr)
+            return 1
+        endpoint = patch_endpoint(update_id, volume)
+        _print_endpoint(endpoint)
+        return 0
+
     if not image:
         print("Set DOCKER_IMAGE to your pushed worker image", file=sys.stderr)
         return 1
@@ -148,11 +199,7 @@ def main() -> int:
         return 1
 
     endpoint = request("POST", "/endpoints", endpoint_body(template_id, volume or ""))
-    print("Endpoint:", json.dumps(endpoint, indent=2))
-    endpoint_id = endpoint.get("id") or endpoint.get("endpointId")
-    if endpoint_id:
-        print(f"Airtable RUNPOD_ENDPOINT_ID={endpoint_id}")
-        print(f"POST https://api.runpod.ai/v2/{endpoint_id}/run")
+    _print_endpoint(endpoint)
     return 0
 
 
