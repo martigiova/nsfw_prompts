@@ -94,6 +94,10 @@ def test_volume_start_script_uses_repo_on_volume():
     text = Path("scripts/on_pod.sh").read_text(encoding="utf-8")
     assert "validate_volume.py" in text
     assert "validate_volume.py || true" not in text
+    yaml = Path("worker/extra_model_paths.yaml").read_text(encoding="utf-8")
+    assert "base_path: /runpod-volume" in yaml
+    assert "base_path: /workspace" in yaml
+    assert "base_path: /workspace/ComfyUI" in yaml
 
 
 def test_endpoint_pins_volume_datacenter(monkeypatch):

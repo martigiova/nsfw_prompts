@@ -62,7 +62,8 @@ def _name_from_url(url: str) -> str:
 
 
 def _fetch(url: str, dest: Path, timeout: int) -> None:
-    with requests.get(url, stream=True, timeout=timeout) as response:
+    headers = {"User-Agent": "minimax-r2v/1.0"}
+    with requests.get(url, stream=True, timeout=timeout, headers=headers) as response:
         response.raise_for_status()
         with dest.open("wb") as handle:
             for chunk in response.iter_content(chunk_size=1024 * 1024):

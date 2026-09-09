@@ -43,7 +43,10 @@ class AirtableClient:
         )
         response = requests.get(
             url,
-            headers={"Authorization": f"Bearer {self.token}"},
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "User-Agent": "minimax-r2v/1.0",
+            },
             timeout=30,
         )
         response.raise_for_status()
@@ -86,6 +89,7 @@ class AirtableClient:
             headers={
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": "application/json",
+                "User-Agent": "minimax-r2v/1.0",
             },
             json={"fields": fields, "typecast": True},
             timeout=30,
