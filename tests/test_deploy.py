@@ -90,6 +90,14 @@ def test_v1_template_patch_omits_jupyter_flags():
     assert "start_from_volume.sh" in patch["dockerStartCmd"][0]
 
 
+def test_worker_cmd_replaces_minimax_gui_start():
+    from scripts.provision_runpod import WORKER_CMD
+
+    assert "start_from_volume.sh" in WORKER_CMD
+    assert "/start.sh" not in WORKER_CMD
+    assert "/runpod-volume/nsfw_prompts" in WORKER_CMD
+
+
 def test_template_runs_handler_from_volume():
     body = template_body("ls250824/run-comfyui-minimax:08092026")
     assert body["dockerEntrypoint"] == ["/bin/bash", "-lc"]

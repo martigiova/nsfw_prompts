@@ -138,16 +138,23 @@ def v1_template_payload(image: str, *, patch: bool) -> dict:
     return {key: value for key, value in body.items() if key not in {"startJupyter", "startSsh"}}
 
 
-def disable_jupyter_v2(template_id: str) -> dict:
-    """REST v1 cannot set startJupyter; v2 can. Default is true and starts the MiniMax GUI."""
+WORKER_CMD = (
+    "set -euo pipefail; "
+    "for d in /runpod-volume/nsfw_prompts /workspace/nsfw_prompts; do "
+    "  if [ -f \"$d/worker/start_from_volume.sh\" ]; then exec /bin/bash \"$d/worker/start_from_volume.sh\"; fi; "
+    "done; "
+    "echo nsfw_prompts not found on the Network Volume; ls -la /runpod-volume /workspace || true; exit 1"
+)
+
+
+def _v2_request(method: str, path: str, payload: dict) -> dict:
     import urllib.request
 
     api_key = os.environ.get("RUNPOD_API_KEY")
-    payload = json.dumps({"startJupyter": False, "startSsh": False, "serverless": True}).encode()
     req = urllib.request.Request(
-        f"https://api.runpod.io/v2/templates/{template_id}",
-        data=payload,
-        method="PATCH",
+        f"https://api.runpod.io{path}",
+        data=json.dumps(payload).encode(),
+        method=method,
         headers={
             "Authorization": f"Bearer {api_key}",
             "User-Agent": "minimax-r2v/1.0",
@@ -157,6 +164,32 @@ def disable_jupyter_v2(template_id: str) -> dict:
     with urllib.request.urlopen(req, timeout=45) as response:
         raw = response.read().decode("utf-8")
         return json.loads(raw) if raw else {}
+
+
+def disable_jupyter_v2(template_id: str) -> dict:
+    """REST v1 cannot set startJupyter; v2 can. Default is true and starts the MiniMax GUI."""
+    return _v2_request(
+        "PATCH",
+        f"/v2/templates/{template_id}",
+        {"startJupyter": False, "startSsh": False, "serverless": True},
+    )
+
+
+def set_worker_cmd_v2(endpoint_id: str) -> dict:
+    """Replace the MiniMax image CMD (/start.sh GUI) with the volume handler.
+
+    v2 serverless only accepts `args` as a string; it does not honor template
+    dockerEntrypoint. Without this, workers loop on the GUI password prompt.
+    """
+    return _v2_request(
+        "PATCH",
+        f"/v2/serverless/{endpoint_id}",
+        {
+            # Plain command string replaces image CMD `/start.sh` (the GUI).
+            "args": f"/bin/bash -lc {json.dumps(WORKER_CMD)}",
+            "disk": int(os.environ.get("CONTAINER_DISK_GB", "250")),
+        },
+    )
 
 
 def patch_template(template_id: str, image: str) -> dict:
@@ -252,6 +285,10 @@ def main() -> int:
                 ),
             )
         endpoint = patch_endpoint(update_id, volume)
+        try:
+            set_worker_cmd_v2(update_id)
+        except Exception as exc:
+            print(f"Warning: could not set v2 worker args: {exc}", file=sys.stderr)
         _print_endpoint(endpoint)
         return 0
 
@@ -277,7 +314,12 @@ def main() -> int:
         print(f"Warning: could not disable Jupyter via v2: {exc}", file=sys.stderr)
 
     endpoint = request("POST", "/endpoints", endpoint_body(template_id, volume or ""))
-    _print_endpoint(endpoint)
+    endpoint_id = _print_endpoint(endpoint)
+    if endpoint_id:
+        try:
+            set_worker_cmd_v2(endpoint_id)
+        except Exception as exc:
+            print(f"Warning: could not set v2 worker args: {exc}", file=sys.stderr)
     return 0
 
 
