@@ -42,13 +42,9 @@ exec > >(tee -a /var/minimax-bootstrap/log.txt) 2>&1
 apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y git git-lfs python3-pip
 python3 -m pip install -U pip "huggingface_hub[cli]" requests
-if [[ -d /workspace/nsfw_prompts/.git ]]; then
-  git -C /workspace/nsfw_prompts fetch --depth 1 origin "${GIT_REF}" || true
-  git -C /workspace/nsfw_prompts checkout FETCH_HEAD || true
-else
-  git clone --depth 1 --branch "${GIT_REF}" "${REPO_URL}" /workspace/nsfw_prompts \
-    || git clone --depth 1 "$REPO_URL" /workspace/nsfw_prompts
-fi
+rm -rf /workspace/nsfw_prompts
+git clone --depth 1 --branch "${GIT_REF}" "${REPO_URL}" /workspace/nsfw_prompts \
+  || git clone --depth 1 "$REPO_URL" /workspace/nsfw_prompts
 bash /workspace/nsfw_prompts/scripts/on_pod.sh
 python3 /workspace/nsfw_prompts/scripts/validate_volume.py
 rm -rf /workspace/.hf /workspace/models/.hf-cache /workspace/models/.hf-tmp
