@@ -40,7 +40,7 @@ def main() -> int:
     body = {
         "name": name,
         "size": int(os.environ.get("RUNPOD_VOLUME_GB", "120")),
-        "dataCenterId": os.environ.get("RUNPOD_DATA_CENTER_ID", "US-KS-2"),
+        "dataCenterId": os.environ.get("RUNPOD_DATA_CENTER_ID", "EU-RO-1"),
     }
     created = request("POST", "/networkvolumes", body)
     print(json.dumps(created, indent=2))

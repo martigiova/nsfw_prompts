@@ -67,26 +67,19 @@ def main() -> int:
 
     status = existing.get("Status")
     if status and status.get("type") == "singleSelect":
-        have = {c["name"]: c for c in (status.get("options") or {}).get("choices") or []}
-        choices = []
-        for name in STATUS_CHOICES:
-            if name in have:
-                choices.append({"id": have[name]["id"], "name": name})
-            else:
-                choices.append({"name": name})
-        req(
-            "PATCH",
-            f"/tables/{table_id}/fields/{status['id']}",
-            {"options": {"choices": choices}},
+        print(
+            "OK   Status (Queued/Running/Done/Error are added on first PATCH via typecast)"
         )
-        print("OK   Status choices", ", ".join(STATUS_CHOICES))
 
     for name in DELETE_IF_UNUSED:
         field = existing.get(name)
         if not field:
             continue
-        req("DELETE", f"/tables/{table_id}/fields/{field['id']}")
-        print(f"DEL  {name}")
+        try:
+            req("DELETE", f"/tables/{table_id}/fields/{field['id']}")
+            print(f"DEL  {name}")
+        except SystemExit as exc:
+            print(f"SKIP delete {name}: {exc}")
     return 0
 
 
