@@ -100,6 +100,19 @@ exec /bin/bash "$ROOT/worker/start_from_volume.sh"
 """
 
 
+V1_TEMPLATE_PATCH_KEYS = (
+    "name",
+    "imageName",
+    "containerDiskInGb",
+    "volumeInGb",
+    "volumeMountPath",
+    "dockerEntrypoint",
+    "dockerStartCmd",
+    "env",
+    "readme",
+)
+
+
 def template_body(image: str) -> dict:
     return {
         "name": os.environ.get("RUNPOD_TEMPLATE_NAME", "minimax-h3-r2v-worker"),
@@ -108,10 +121,52 @@ def template_body(image: str) -> dict:
         "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "250")),
         "volumeInGb": int(os.environ.get("TEMPLATE_VOLUME_GB", "0")),
         "volumeMountPath": "/runpod-volume",
-        "dockerEntrypoint": ["/bin/bash", "-lc", VOLUME_ENTRYPOINT],
-        "dockerStartCmd": [],
+        # Entrypoint + startCmd (not []) so the MiniMax GUI image CMD is not appended.
+        "dockerEntrypoint": ["/bin/bash", "-lc"],
+        "dockerStartCmd": [VOLUME_ENTRYPOINT],
+        "startJupyter": False,
+        "startSsh": False,
+        "ports": [],
         "env": worker_env(),
     }
+
+
+def v1_template_payload(image: str, *, patch: bool) -> dict:
+    body = template_body(image)
+    if patch:
+        return {key: body[key] for key in V1_TEMPLATE_PATCH_KEYS if key in body}
+    return {key: value for key, value in body.items() if key not in {"startJupyter", "startSsh"}}
+
+
+def disable_jupyter_v2(template_id: str) -> dict:
+    """REST v1 cannot set startJupyter; v2 can. Default is true and starts the MiniMax GUI."""
+    import urllib.request
+
+    api_key = os.environ.get("RUNPOD_API_KEY")
+    payload = json.dumps({"startJupyter": False, "startSsh": False, "serverless": True}).encode()
+    req = urllib.request.Request(
+        f"https://api.runpod.io/v2/templates/{template_id}",
+        data=payload,
+        method="PATCH",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "minimax-r2v/1.0",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=45) as response:
+        raw = response.read().decode("utf-8")
+        return json.loads(raw) if raw else {}
+
+
+def patch_template(template_id: str, image: str) -> dict:
+    """Resize container disk / env on the live serverless template."""
+    updated = request("PATCH", f"/templates/{template_id}", v1_template_payload(image, patch=True))
+    try:
+        disable_jupyter_v2(template_id)
+    except Exception as exc:
+        print(f"Warning: could not disable Jupyter via v2: {exc}", file=sys.stderr)
+    return updated
 
 
 def endpoint_body(template_id: str, volume: str) -> dict:
@@ -143,11 +198,6 @@ def _print_endpoint(endpoint: dict) -> str | None:
         print(f"Airtable RUNPOD_ENDPOINT_ID={endpoint_id}")
         print(f"POST https://api.runpod.ai/v2/{endpoint_id}/run")
     return endpoint_id
-
-
-def patch_template(template_id: str, image: str) -> dict:
-    """Resize container disk / env on the live serverless template."""
-    return request("PATCH", f"/templates/{template_id}", template_body(image))
 
 
 def patch_endpoint(endpoint_id: str, volume: str) -> dict:
@@ -215,12 +265,16 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    template = request("POST", "/templates", template_body(image))
+    template = request("POST", "/templates", v1_template_payload(image, patch=False))
     print("Template:", json.dumps(template, indent=2))
     template_id = template.get("id") or template.get("templateId")
     if not template_id:
         print("Could not read template id from response", file=sys.stderr)
         return 1
+    try:
+        disable_jupyter_v2(template_id)
+    except Exception as exc:
+        print(f"Warning: could not disable Jupyter via v2: {exc}", file=sys.stderr)
 
     endpoint = request("POST", "/endpoints", endpoint_body(template_id, volume or ""))
     _print_endpoint(endpoint)

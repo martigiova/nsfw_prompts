@@ -79,12 +79,24 @@ def test_interpret_status_fails_fast_on_exited_pod():
     assert interpret_status(None, {"desiredStatus": "RUNNING"}) == "wait"
 
 
+def test_v1_template_patch_omits_jupyter_flags():
+    from scripts.provision_runpod import v1_template_payload
+
+    patch = v1_template_payload("ls250824/run-comfyui-minimax:08092026", patch=True)
+    assert "startJupyter" not in patch
+    assert "startSsh" not in patch
+    assert "isServerless" not in patch
+    assert patch["dockerEntrypoint"] == ["/bin/bash", "-lc"]
+    assert "start_from_volume.sh" in patch["dockerStartCmd"][0]
+
+
 def test_template_runs_handler_from_volume():
     body = template_body("ls250824/run-comfyui-minimax:08092026")
-    assert body["dockerEntrypoint"][0] == "/bin/bash"
-    assert body["dockerEntrypoint"][1] == "-lc"
-    assert "start_from_volume.sh" in body["dockerEntrypoint"][2]
-    assert body["dockerStartCmd"] == []
+    assert body["dockerEntrypoint"] == ["/bin/bash", "-lc"]
+    assert "start_from_volume.sh" in body["dockerStartCmd"][0]
+    assert body["startJupyter"] is False
+    assert body["startSsh"] is False
+    assert body["ports"] == []
     assert body["containerDiskInGb"] == 250
 
 
