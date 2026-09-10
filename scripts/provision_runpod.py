@@ -19,6 +19,7 @@ DEFAULT_DOCKER_IMAGE = "ls250824/run-comfyui-minimax:08092026"
 GPU_TYPE_IDS = [
     "NVIDIA RTX PRO 6000 Blackwell Server Edition",
     "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
 ]
 
 

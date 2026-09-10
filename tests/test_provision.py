@@ -1,11 +1,12 @@
 from scripts.provision_runpod import GPU_TYPE_IDS, patch_endpoint, worker_env
-from scripts.run_gpu_pod_job import pod_body
+from scripts.run_gpu_pod_job import create_pod, pod_body
 
 
 def test_gpu_type_ids_match_runpod_enum():
     assert GPU_TYPE_IDS == [
         "NVIDIA RTX PRO 6000 Blackwell Server Edition",
         "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+        "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
     ]
     assert "NVIDIA GeForce RTX 4090" not in GPU_TYPE_IDS
     assert "NVIDIA RTX A6000" not in GPU_TYPE_IDS
@@ -104,6 +105,7 @@ def test_gpu_pod_always_uses_pro_6000(monkeypatch):
     expected = [
         "NVIDIA RTX PRO 6000 Blackwell Server Edition",
         "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+        "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
     ]
     body = pod_body(None)
     assert body["gpuTypeIds"] == expected
@@ -113,3 +115,20 @@ def test_gpu_pod_always_uses_pro_6000(monkeypatch):
     body_us = pod_body(None)
     assert body_us["gpuTypeIds"] == expected
     assert "NVIDIA GeForce RTX 4090" not in body_us["gpuTypeIds"]
+
+
+def test_create_pod_retries_empty_stock(monkeypatch):
+    calls: list[str] = []
+
+    def fake_request(method, path, payload=None):
+        calls.append(payload["cloudType"])
+        if len(calls) < 3:
+            raise SystemExit("RunPod 500 POST /pods: There are no instances currently available")
+        return {"id": "pod1"}
+
+    monkeypatch.setattr("scripts.run_gpu_pod_job.request", fake_request)
+    monkeypatch.setenv("GPU_JOB_RETRY_SECONDS", "0")
+    monkeypatch.setenv("GPU_JOB_CREATE_ATTEMPTS", "5")
+    pod = create_pod({"cloudType": "SECURE", "gpuTypeIds": ["NVIDIA RTX PRO 6000 Blackwell Server Edition"]})
+    assert pod["id"] == "pod1"
+    assert calls[:3] == ["SECURE", "COMMUNITY", "SECURE"]

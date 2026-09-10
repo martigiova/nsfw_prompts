@@ -151,6 +151,36 @@ def wait_for_queue(timeout: int) -> list[dict]:
     raise SystemExit(f"Timed out waiting for Airtable queue to drain ({len(last)} records)")
 
 
+def create_pod(body: dict) -> dict:
+    """POST /pods, retrying when EU-RO-1 PRO 6000 stock is empty."""
+    clouds = []
+    preferred = (body.get("cloudType") or "SECURE").upper()
+    for cloud in (preferred, "SECURE", "COMMUNITY"):
+        if cloud not in clouds and cloud in {"SECURE", "COMMUNITY"}:
+            clouds.append(cloud)
+    delay = int(os.environ.get("GPU_JOB_RETRY_SECONDS", "10"))
+    attempts = int(os.environ.get("GPU_JOB_CREATE_ATTEMPTS", "90"))
+    last: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        cloud = clouds[(attempt - 1) % len(clouds)]
+        payload = dict(body)
+        payload["cloudType"] = cloud
+        print(f"Creating GPU pod attempt {attempt}/{attempts} cloudType={cloud}")
+        try:
+            return request("POST", "/pods", payload)
+        except SystemExit as exc:
+            last = exc
+            text = str(exc).lower()
+            if "no instances" not in text and "not available" not in text:
+                raise
+            print(exc)
+            if attempt < attempts:
+                print(f"retry in {delay}s")
+                time.sleep(delay)
+                delay = min(40, delay + 5)
+    raise last or SystemExit("Could not create GPU pod")
+
+
 def terminate(pod_id: str) -> None:
     request("DELETE", f"/pods/{pod_id}")
     print(f"Terminated GPU job pod {pod_id}")
@@ -189,7 +219,7 @@ def main() -> int:
 
     body = pod_body(record_id or None)
     print("GPU types:", body["gpuTypeIds"])
-    pod = request("POST", "/pods", body)
+    pod = create_pod(body)
     print("Pod:", json.dumps({k: pod.get(k) for k in ("id", "desiredStatus", "imageName", "dataCenterId")}, indent=2))
     pod_id = pod.get("id") or pod.get("podId")
     if not pod_id:
