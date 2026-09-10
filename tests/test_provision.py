@@ -85,3 +85,23 @@ def test_gpu_pod_queue_drains_without_single_record(monkeypatch):
     body = pod_body(None)
     assert "AIRTABLE_RECORD_ID" not in body["env"]
     assert body["env"]["AIRTABLE_DRAIN"] == "1"
+
+
+def test_video_reference_jobs_require_pro_6000(monkeypatch):
+    from scripts.run_gpu_pod_job import pending_need_high_vram, pod_body
+
+    monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
+    monkeypatch.delenv("RUNPOD_DATA_CENTER_ID", raising=False)
+    monkeypatch.delenv("RUNPOD_GPU_TYPE_IDS", raising=False)
+    monkeypatch.setenv("RUNPOD_NETWORK_VOLUME_ID", "vol_123")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    assert pending_need_high_vram(
+        [{"fields": {"Video": [{"url": "https://example.com/a.mp4"}]}}]
+    )
+    body = pod_body(None, high_vram=True)
+    assert body["gpuTypeIds"] == [
+        "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+        "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    ]
+    assert "NVIDIA GeForce RTX 4090" not in body["gpuTypeIds"]
