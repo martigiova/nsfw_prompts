@@ -38,10 +38,11 @@ def test_patch_endpoint_reattaches_volume(monkeypatch):
 def test_worker_env_sets_comfy_input_dir(monkeypatch):
     monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
     monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.delenv("COMFY_WAIT_TIMEOUT", raising=False)
     env = worker_env()
     assert env["COMFY_INPUT_DIR"] == "/ComfyUI/input"
     assert env["COMFY_ROOT"] == "/ComfyUI"
-    assert env["COMFY_WAIT_TIMEOUT"] == "1650"
+    assert env["COMFY_WAIT_TIMEOUT"] == "3600"
     assert env["AIRTABLE_TOKEN"] == "tok"
     assert env["AIRTABLE_BASE_ID"] == "appX"
     assert env["AIRTABLE_TABLE_NAME"] == "Minimax"

@@ -90,7 +90,7 @@ def run_job(event: dict) -> dict:
         comfy = ComfyClient(comfy_host)
         comfy.wait_until_ready()
         prompt_id = comfy.queue_prompt(workflow)
-        wait_s = int(os.environ.get("COMFY_WAIT_TIMEOUT", "1650"))
+        wait_s = int(os.environ.get("COMFY_WAIT_TIMEOUT", "3600"))
         history = comfy.wait_for_prompt(prompt_id, timeout=wait_s)
         videos = comfy.collect_videos(history)
         if not videos:

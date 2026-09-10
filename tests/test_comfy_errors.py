@@ -32,3 +32,24 @@ def test_queue_prompt_raises_on_node_errors(monkeypatch):
         raise AssertionError("should have raised")
     except RuntimeError as exc:
         assert "node_errors" in str(exc)
+
+
+def test_wait_for_prompt_interrupts_on_timeout(monkeypatch):
+    client = ComfyClient()
+    seen = []
+
+    def fake_get(path, **kwargs):
+        return FakeResponse({})
+
+    def fake_post(path, **kwargs):
+        seen.append(path)
+        return FakeResponse({})
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    monkeypatch.setattr(client, "_post", fake_post)
+    try:
+        client.wait_for_prompt("missing", poll_interval=0.01, timeout=0.05)
+        raise AssertionError("should have timed out")
+    except TimeoutError as exc:
+        assert "missing" in str(exc)
+    assert "/interrupt" in seen

@@ -88,7 +88,14 @@ class ComfyClient:
                 if entry.get("outputs") or status.get("completed"):
                     return entry
             time.sleep(poll_interval)
+        self.interrupt()
         raise TimeoutError(f"Timed out waiting for prompt {prompt_id}")
+
+    def interrupt(self) -> None:
+        try:
+            self._post("/interrupt", timeout=10)
+        except requests.RequestException:
+            return
 
     def get_history(self, prompt_id: str) -> dict[str, Any]:
         response = self._get(f"/history/{prompt_id}", timeout=self.timeout)

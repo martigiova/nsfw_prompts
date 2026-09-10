@@ -69,7 +69,7 @@ def worker_env() -> dict[str, str]:
         "COMFY_ROOT": os.environ.get("COMFY_ROOT", "/ComfyUI"),
         "COMFY_INPUT_DIR": os.environ.get("COMFY_INPUT_DIR", "/ComfyUI/input"),
         "SKIP_VOLUME_CHECK": os.environ.get("SKIP_VOLUME_CHECK", "0"),
-        "COMFY_WAIT_TIMEOUT": os.environ.get("COMFY_WAIT_TIMEOUT", "1650"),
+        "COMFY_WAIT_TIMEOUT": os.environ.get("COMFY_WAIT_TIMEOUT", "3600"),
         "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Minimax"),
         "APP_ROOT": os.environ.get("APP_ROOT", "/runpod-volume/nsfw_prompts"),
         "HF_HUB_OFFLINE": os.environ.get("HF_HUB_OFFLINE", "1"),
