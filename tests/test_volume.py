@@ -2,7 +2,9 @@ from pathlib import Path
 
 from minimax_r2v.volume import (
     assert_weights_if_volume_present,
+    describe_weights,
     find_weight,
+    log_volume_weights,
     missing_weights,
     volume_is_present,
 )
@@ -66,3 +68,24 @@ def test_volume_check_raises_when_mounted_and_empty(monkeypatch, tmp_path):
 def test_volume_is_present_uses_volume_root(monkeypatch, tmp_path):
     monkeypatch.setenv("VOLUME_ROOT", str(tmp_path))
     assert volume_is_present() is True
+
+
+def test_describe_and_log_weights(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("minimax_r2v.volume.expected_min_bytes", lambda rel: 1_000_000)
+    monkeypatch.setenv("VOLUME_ROOT", str(tmp_path))
+    models = tmp_path / "models"
+    rels = (
+        "diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+        "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "vae/minimax_h3_video_vae_fp16.safetensors",
+        "vae/minimax_h3_audio_vae_fp32.safetensors",
+        "loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+    )
+    for rel in rels:
+        _touch_weight(models, rel)
+    rows = describe_weights()
+    assert all(path is not None for _, path, _ in rows)
+    log_volume_weights()
+    out = capsys.readouterr().out
+    assert "no Hugging Face download" in out
+    assert "volume OK" in out

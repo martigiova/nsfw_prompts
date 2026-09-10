@@ -19,7 +19,13 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.provision_runpod import GPU_TYPE_IDS, VOLUME_ENTRYPOINT, worker_env
+from scripts.provision_runpod import (
+    DEFAULT_CONTAINER_DISK_GB,
+    DEFAULT_DOCKER_IMAGE,
+    GPU_TYPE_IDS,
+    VOLUME_ENTRYPOINT,
+    worker_env,
+)
 from scripts.runpod_http import request, resolve_data_center
 
 
@@ -39,11 +45,11 @@ def pod_body(record_id: str) -> dict:
         ]
     body = {
         "name": os.environ.get("GPU_JOB_POD_NAME", "minimax-h3-r2v-job"),
-        "imageName": os.environ.get("DOCKER_IMAGE", "ls250824/run-comfyui-minimax:08092026"),
+        "imageName": os.environ.get("DOCKER_IMAGE", DEFAULT_DOCKER_IMAGE),
         "gpuTypeIds": gpu_ids,
         "gpuCount": 1,
         "cloudType": os.environ.get("GPU_JOB_CLOUD", "SECURE"),
-        "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "250")),
+        "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", str(DEFAULT_CONTAINER_DISK_GB))),
         "volumeInGb": 0,
         "networkVolumeId": volume,
         "volumeMountPath": "/runpod-volume",

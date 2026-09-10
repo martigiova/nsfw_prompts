@@ -9,6 +9,11 @@ import sys
 
 from scripts.runpod_http import request, resolve_data_center
 
+# MiniMax H3 weights (~56 GB) live on the Network Volume. The container only
+# needs the ComfyUI image (~10 GB) plus temp outputs — not the GUI's 250 GB disk.
+DEFAULT_CONTAINER_DISK_GB = 30
+DEFAULT_DOCKER_IMAGE = "ls250824/run-comfyui-minimax:08092026"
+
 # Exact enum values from POST /endpoints (wrong names are rejected).
 # Order is rent preference. RTX PRO 6000 (96 GB) is what we use for MiniMax
 # in the GUI; 4090/A6000 remain fallbacks if PRO 6000 is out of stock.
@@ -58,6 +63,8 @@ def worker_env() -> dict[str, str]:
         "SKIP_VOLUME_CHECK",
         "COMFY_WAIT_TIMEOUT",
         "APP_ROOT",
+        "HF_HUB_OFFLINE",
+        "TRANSFORMERS_OFFLINE",
     )
     env = {
         "MOTION_LORA_NAME": os.environ.get(
@@ -70,6 +77,8 @@ def worker_env() -> dict[str, str]:
         "COMFY_WAIT_TIMEOUT": os.environ.get("COMFY_WAIT_TIMEOUT", "1650"),
         "AIRTABLE_TABLE_NAME": os.environ.get("AIRTABLE_TABLE_NAME", "Minimax"),
         "APP_ROOT": os.environ.get("APP_ROOT", "/runpod-volume/nsfw_prompts"),
+        "HF_HUB_OFFLINE": os.environ.get("HF_HUB_OFFLINE", "1"),
+        "TRANSFORMERS_OFFLINE": os.environ.get("TRANSFORMERS_OFFLINE", "1"),
         # MiniMax /start.sh starts code-server when this is set. Harmless if we
         # replace the entrypoint; required if the GUI script still runs.
         "PASSWORD": os.environ.get("PASSWORD", "minimax-r2v"),
@@ -82,6 +91,7 @@ def worker_env() -> dict[str, str]:
 
 
 VOLUME_ENTRYPOINT = r"""set -euo pipefail
+echo "minimax-r2v: Network Volume job — weights stay on the volume, no HF download"
 ROOT=""
 for d in /runpod-volume/nsfw_prompts /workspace/nsfw_prompts; do
   if [ -d "$d/minimax_r2v" ]; then ROOT=$d; break; fi
@@ -95,6 +105,8 @@ export APP_ROOT="$ROOT"
 if [ -d /runpod-volume/models ]; then export VOLUME_ROOT=/runpod-volume
 elif [ -d /workspace/models ]; then export VOLUME_ROOT=/workspace
 fi
+export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
 if command -v git >/dev/null 2>&1 && [ -d "$ROOT/.git" ]; then
   git -C "$ROOT" fetch --depth 1 origin cursor/minimax-runpod-serverless-9e74 || true
   git -C "$ROOT" reset --hard FETCH_HEAD || true
@@ -121,7 +133,7 @@ def template_body(image: str) -> dict:
         "name": os.environ.get("RUNPOD_TEMPLATE_NAME", "minimax-h3-r2v-worker"),
         "imageName": image,
         "isServerless": True,
-        "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", "250")),
+        "containerDiskInGb": int(os.environ.get("CONTAINER_DISK_GB", str(DEFAULT_CONTAINER_DISK_GB))),
         "volumeInGb": int(os.environ.get("TEMPLATE_VOLUME_GB", "0")),
         "volumeMountPath": "/runpod-volume",
         # Entrypoint + startCmd (not []) so the MiniMax GUI image CMD is not appended.
@@ -207,7 +219,7 @@ def set_worker_cmd_v2(endpoint_id: str) -> dict:
         f"/v2/serverless/{endpoint_id}",
         {
             "args": worker_start_args(),
-            "disk": int(os.environ.get("CONTAINER_DISK_GB", "250")),
+            "disk": int(os.environ.get("CONTAINER_DISK_GB", str(DEFAULT_CONTAINER_DISK_GB))),
             "env": env,
         },
     )

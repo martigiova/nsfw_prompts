@@ -103,6 +103,14 @@ def test_worker_cmd_replaces_minimax_gui_start():
     assert parsed["cmd"] == [WORKER_CMD]
 
 
+def test_volume_entrypoint_does_not_download_weights():
+    from scripts.provision_runpod import VOLUME_ENTRYPOINT
+
+    assert "HF_HUB_OFFLINE" in VOLUME_ENTRYPOINT
+    assert "no HF download" in VOLUME_ENTRYPOINT
+    assert "huggingface" not in VOLUME_ENTRYPOINT.lower() or "no HF download" in VOLUME_ENTRYPOINT
+
+
 def test_template_runs_handler_from_volume():
     body = template_body("ls250824/run-comfyui-minimax:08092026")
     assert body["dockerEntrypoint"] == ["/bin/bash", "-lc"]
@@ -110,12 +118,14 @@ def test_template_runs_handler_from_volume():
     assert body["startJupyter"] is False
     assert body["startSsh"] is False
     assert body["ports"] == []
-    assert body["containerDiskInGb"] == 250
+    assert body["containerDiskInGb"] == 30
 
 
 def test_volume_start_script_uses_repo_on_volume():
     text = Path("worker/start_from_volume.sh").read_text(encoding="utf-8")
     assert "/runpod-volume/nsfw_prompts" in text
+    assert "/runpod-volume/ComfyUI" in text
+    assert "HF_HUB_OFFLINE" in text
     assert "ensure_refpack" in text
     assert "ComfyUI-MiniMaxRefPack" in text
     assert "seed_comfy_login" in text

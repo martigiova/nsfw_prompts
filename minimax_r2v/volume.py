@@ -54,11 +54,37 @@ def missing_weights(roots: list[Path] | None = None) -> list[str]:
     return [rel for rel in REQUIRED if find_weight(rel, search) is None]
 
 
+def describe_weights(roots: list[Path] | None = None) -> list[tuple[str, Path | None, int]]:
+    """Return (rel, path, size) for required weights. path is None if missing."""
+    search = roots if roots is not None else model_roots()
+    rows: list[tuple[str, Path | None, int]] = []
+    for rel in REQUIRED:
+        path = find_weight(rel, search)
+        size = path.stat().st_size if path else 0
+        rows.append((rel, path, size))
+    return rows
+
+
+def log_volume_weights() -> None:
+    """Print where each weight lives. Never downloads."""
+    print("minimax-r2v: using Network Volume weights (no Hugging Face download)")
+    for rel, path, size in describe_weights():
+        if path:
+            print(f"minimax-r2v: volume OK {rel} ({size / 1e9:.1f} GB) -> {path}")
+        else:
+            print(f"minimax-r2v: volume MISSING {rel}")
+    for rel in OPTIONAL:
+        path = find_weight(rel)
+        if path:
+            print(f"minimax-r2v: volume OPT {rel} ({path.stat().st_size / 1e9:.1f} GB) -> {path}")
+
+
 def assert_weights_if_volume_present() -> None:
     if os.environ.get("SKIP_VOLUME_CHECK", "0") == "1":
         return
     if not volume_is_present():
         return
+    log_volume_weights()
     missing = missing_weights()
     if missing:
         raise RuntimeError(

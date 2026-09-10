@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Run the MiniMax GUI image as serverless using code + weights on the Network Volume.
-# No custom Docker build: image is ls250824/run-comfyui-minimax:<date>.
+# Run MiniMax using ComfyUI from the image and weights already on the Network Volume.
+# The GUI image is only the CUDA/ComfyUI stack (~10 GB). It must NOT download models.
 set -euo pipefail
 
 export PYTHONUNBUFFERED=1
+# Fail fast instead of pulling ~56 GB from Hugging Face. Weights are on the volume.
+export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
 APP_ROOT="${APP_ROOT:-}"
 if [[ -z "${APP_ROOT}" ]]; then
   for candidate in /runpod-volume/nsfw_prompts /workspace/nsfw_prompts; do
@@ -19,7 +22,7 @@ export WORKFLOW_PATH="${WORKFLOW_PATH:-${APP_ROOT}/workflows/api_template.json}"
 
 COMFY_ROOT="${COMFY_ROOT:-/ComfyUI}"
 if [[ ! -f "${COMFY_ROOT}/main.py" ]]; then
-  for candidate in /ComfyUI /workspace/ComfyUI; do
+  for candidate in /ComfyUI /comfyui /runpod-volume/ComfyUI /workspace/ComfyUI; do
     if [[ -f "${candidate}/main.py" ]]; then
       COMFY_ROOT="${candidate}"
       break
@@ -84,7 +87,7 @@ ensure_refpack() {
 ensure_refpack
 
 if [[ "${SKIP_VOLUME_CHECK:-0}" != "1" ]]; then
-  echo "minimax-r2v: checking Network Volume weights"
+  echo "minimax-r2v: checking Network Volume weights (already bootstrapped, no download)"
   python - <<'PY'
 from minimax_r2v.volume import assert_weights_if_volume_present
 assert_weights_if_volume_present()

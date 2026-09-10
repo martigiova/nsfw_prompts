@@ -45,6 +45,8 @@ def test_worker_env_sets_comfy_input_dir(monkeypatch):
     assert env["AIRTABLE_TABLE_NAME"] == "Minimax"
     assert env["APP_ROOT"] == "/runpod-volume/nsfw_prompts"
     assert env["SKIP_MOTION_LORA"] == "1"
+    assert env["HF_HUB_OFFLINE"] == "1"
+    assert env["TRANSFORMERS_OFFLINE"] == "1"
 
 
 def test_worker_env_copies_airtable_field_names(monkeypatch):
@@ -68,4 +70,5 @@ def test_gpu_pod_job_overrides_minimax_start(monkeypatch):
     assert body["volumeMountPath"] == "/runpod-volume"
     assert body["env"]["AIRTABLE_RECORD_ID"] == "recABC"
     assert body["gpuTypeIds"][0] == "NVIDIA RTX PRO 6000 Blackwell Server Edition"
-    assert body["containerDiskInGb"] == 250
+    assert body["containerDiskInGb"] == 30
+    assert body["env"]["HF_HUB_OFFLINE"] == "1"

@@ -34,7 +34,7 @@ Tutti da [`Comfy-Org/MiniMax-H3`](https://huggingface.co/Comfy-Org/MiniMax-H3), 
 | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` | `models/loras` | ~2 GB |
 | `hmmotion_minimax-h3_epoch40.safetensors` | `models/loras` | già sul pod GUI |
 
-Volume consigliato: **100–150 GB** di Network Volume (pesi MiniMax), stessa data center dell’endpoint. Container disk del worker: **250 GB** (come il deploy GUI). **Non** pinna EU-RO-1 se il catalogo Serverless 4090 è `LOW` (i worker restano `throttled`). `scripts/create_volume.py` sceglie un DC con stock `HIGH` se `RUNPOD_DATA_CENTER_ID` è vuoto. GPU preferita: **RTX PRO 6000 Blackwell Server Edition** (96 GB); fallback RTX 4090 24 GB. Timeout esecuzione: 30 minuti. `workersMin=0`, `idleTimeout` 60–120 s così i pesi restano in VRAM tra un job e l’altro.
+Volume consigliato: **100–150 GB** di Network Volume (pesi MiniMax), stessa data center dell’endpoint. Container disk del worker: **30 GB** (l’immagine è solo ComfyUI+CUDA; i ~56 GB di pesi stanno già sul volume). **Non** pinna EU-RO-1 se il catalogo Serverless 4090 è `LOW` (i worker restano `throttled`). `scripts/create_volume.py` sceglie un DC con stock `HIGH` se `RUNPOD_DATA_CENTER_ID` è vuoto. GPU preferita: **RTX PRO 6000 Blackwell Server Edition** (96 GB); fallback RTX 4090 24 GB. Timeout esecuzione: 30 minuti. `workersMin=0`, `idleTimeout` 60–120 s così i pesi restano in VRAM tra un job e l’altro.
 
 ## 1. Network volume (una volta)
 
@@ -61,9 +61,9 @@ bash /workspace/nsfw_prompts/scripts/on_pod.sh
 
 ## 2. Immagine worker
 
-Preferita: usa **direttamente** `ls250824/run-comfyui-minimax:08092026` (su Docker Hub **non esiste** `:latest`). Il codice worker sta sul Network Volume in `nsfw_prompts/`; non serve build/push di un’immagine custom.
+Preferita: usa **direttamente** `ls250824/run-comfyui-minimax:08092026` (su Docker Hub **non esiste** `:latest`). È solo lo stack ComfyUI+CUDA (~10 GB): **non** contiene i pesi MiniMax. I ~56 GB restano sul Network Volume; il worker li verifica e non li riscarica (`HF_HUB_OFFLINE=1`). Il codice worker sta sul volume in `nsfw_prompts/`; non serve build/push di un’immagine custom.
 
-L’immagine GUI ha `CMD ["/start.sh"]` (provisioning ComfyUI + Code Server) e **ignora** gli argomenti extra. Il provisioning scrive `args` in JSON `{"entrypoint":["/bin/bash","-lc"],"cmd":[...]}` così parte `worker/start_from_volume.sh`. Quello script disattiva `ComfyUI-Login` (altrimenti `/prompt` risponde 401).
+L’immagine GUI ha `CMD ["/start.sh"]` (provisioning ComfyUI + Code Server + download modelli) e **ignora** gli argomenti extra. Non va mai lasciato partire: scaricherebbe di nuovo i pesi. Il provisioning scrive `args` in JSON `{"entrypoint":["/bin/bash","-lc"],"cmd":[...]}` così parte `worker/start_from_volume.sh`. Quello script disattiva `ComfyUI-Login` (altrimenti `/prompt` risponde 401).
 
 ```bash
 docker build -t YOURUSER/minimax-h3-r2v:1.0 -f worker/Dockerfile.template .
@@ -78,7 +78,7 @@ Il node `MiniMaxH3ReferencePack` risolve i file con `os.path.join(input_dir, fil
 
 ## 3. Endpoint serverless
 
-In console RunPod: template serverless con quell’immagine, Network Volume selezionato, GPU **NVIDIA RTX PRO 6000 Blackwell Server Edition** (96 GB, stessa scheda del deploy GUI), fallback 4090 / A6000 / L40S. Container disk **250 GB**. Timeout 1 800 000 ms.
+In console RunPod: template serverless con quell’immagine, Network Volume selezionato, GPU **NVIDIA RTX PRO 6000 Blackwell Server Edition** (96 GB, stessa scheda del deploy GUI), fallback 4090 / A6000 / L40S. Container disk **30 GB**. Timeout 1 800 000 ms.
 
 Oppure, con le env in `.env.example`:
 
@@ -89,7 +89,7 @@ python scripts/provision_runpod.py
 python scripts/provision_runpod.py --update
 ```
 
-`provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA RTX PRO 6000 Blackwell Server Edition`, `NVIDIA GeForce RTX 4090`) e attacca l’endpoint alla **stessa data center del Network Volume**. Container disk default **250 GB**. Env obbligatorie sull’endpoint:
+`provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA RTX PRO 6000 Blackwell Server Edition`, `NVIDIA GeForce RTX 4090`) e attacca l’endpoint alla **stessa data center del Network Volume**. Container disk default **30 GB**. Env obbligatorie sull’endpoint:
 
 - `AIRTABLE_TOKEN`, `AIRTABLE_BASE_ID`
 - `BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`, `BUCKET_NAME`, `BUCKET_PUBLIC_URL_PREFIX`
