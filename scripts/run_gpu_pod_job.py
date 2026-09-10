@@ -6,6 +6,7 @@ The Network Volume keeps the weights. The pod is created for the queue and
 deleted when Todo/Queued/Running are gone — no idle GPU cost.
 
 Set CONFIRM_GPU_JOB=1. Pass --queue for every pending row, or --record rec...
+GPU is always RTX PRO 6000 (1080p MiniMax does not fit in 24 GB).
 """
 
 from __future__ import annotations
@@ -32,36 +33,15 @@ from scripts.provision_runpod import (
 )
 from scripts.runpod_http import request, resolve_data_center
 
-HIGH_VRAM_GPU_TYPE_IDS = [
-    "NVIDIA RTX PRO 6000 Blackwell Server Edition",
-    "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
-]
 
-
-def _gpu_ids(*, data_center: str, high_vram: bool) -> list[str]:
+def _gpu_ids() -> list[str]:
     override = os.environ.get("RUNPOD_GPU_TYPE_IDS", "").strip()
     if override:
         return [item.strip() for item in override.split(",") if item.strip()]
-    if high_vram:
-        return list(HIGH_VRAM_GPU_TYPE_IDS)
-    gpu_ids = list(GPU_TYPE_IDS)
-    if data_center == "US-IL-1":
-        gpu_ids = ["NVIDIA GeForce RTX 4090"] + [
-            gpu for gpu in GPU_TYPE_IDS if gpu != "NVIDIA GeForce RTX 4090"
-        ]
-    return gpu_ids
+    return list(GPU_TYPE_IDS)
 
 
-def pending_need_high_vram(records: list[dict] | None) -> bool:
-    for record in records or []:
-        fields = record.get("fields") or {}
-        video = fields.get("Video")
-        if isinstance(video, list) and video:
-            return True
-    return False
-
-
-def pod_body(record_id: str | None = None, *, high_vram: bool = False) -> dict:
+def pod_body(record_id: str | None = None) -> dict:
     volume = os.environ.get("RUNPOD_NETWORK_VOLUME_ID", "")
     if not volume:
         raise SystemExit("Set RUNPOD_NETWORK_VOLUME_ID")
@@ -71,7 +51,7 @@ def pod_body(record_id: str | None = None, *, high_vram: bool = False) -> dict:
     if record_id:
         env["AIRTABLE_RECORD_ID"] = record_id
     data_center = resolve_data_center(volume)
-    gpu_ids = _gpu_ids(data_center=data_center or "", high_vram=high_vram)
+    gpu_ids = _gpu_ids()
     body = {
         "name": os.environ.get("GPU_JOB_POD_NAME", "minimax-h3-r2v-job"),
         "imageName": os.environ.get("DOCKER_IMAGE", DEFAULT_DOCKER_IMAGE),
@@ -202,23 +182,13 @@ def main() -> int:
     if not record_id and not queue:
         print("Pass --queue or --record rec...", file=sys.stderr)
         return 1
-    high_vram = "--high-vram" in sys.argv
-    pending: list[dict] = []
-    if os.environ.get("AIRTABLE_TOKEN") and os.environ.get("AIRTABLE_BASE_ID"):
-        try:
-            pending = _airtable().list_pending()
-        except Exception as exc:
-            print(f"Could not list Airtable pending: {exc}", file=sys.stderr)
-    if not high_vram:
-        high_vram = pending_need_high_vram(pending)
     if os.environ.get("CONFIRM_GPU_JOB") != "1":
-        print(json.dumps(pod_body(record_id or None, high_vram=high_vram), indent=2))
+        print(json.dumps(pod_body(record_id or None), indent=2))
         print("Dry run. Set CONFIRM_GPU_JOB=1 to create the GPU pod.", file=sys.stderr)
         return 0
 
-    body = pod_body(record_id or None, high_vram=high_vram)
+    body = pod_body(record_id or None)
     print("GPU types:", body["gpuTypeIds"])
-    pod = request("POST", "/pods", body)
     pod = request("POST", "/pods", body)
     print("Pod:", json.dumps({k: pod.get(k) for k in ("id", "desiredStatus", "imageName", "dataCenterId")}, indent=2))
     pod_id = pod.get("id") or pod.get("podId")

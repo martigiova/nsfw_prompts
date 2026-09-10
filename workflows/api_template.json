@@ -144,8 +144,8 @@
   "184": {
     "inputs": {
       "prompt": ["185", 18],
-      "width": 736,
-      "height": 1344,
+      "width": 1088,
+      "height": 1920,
       "length": 192,
       "ref_image_size": "match",
       "clip": ["127", 0],
@@ -187,8 +187,8 @@
       "api_base": "",
       "local_model_slug": "",
       "job_type": "auto",
-      "width": 736,
-      "height": 1344,
+      "width": 1088,
+      "height": 1920,
       "length_seconds": 8,
       "max_reference_edge": 2048
     },

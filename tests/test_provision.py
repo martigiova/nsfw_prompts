@@ -3,13 +3,14 @@ from scripts.run_gpu_pod_job import pod_body
 
 
 def test_gpu_type_ids_match_runpod_enum():
-    assert GPU_TYPE_IDS[0] == "NVIDIA RTX PRO 6000 Blackwell Server Edition"
-    assert "NVIDIA GeForce RTX 4090" in GPU_TYPE_IDS
-    assert "NVIDIA RTX A6000" in GPU_TYPE_IDS
-    assert "NVIDIA A40" in GPU_TYPE_IDS
-    assert "NVIDIA GeForce RTX 5090" in GPU_TYPE_IDS
-    assert "NVIDIA RTX 4090" not in GPU_TYPE_IDS
-    assert "NVIDIA A6000" not in GPU_TYPE_IDS
+    assert GPU_TYPE_IDS == [
+        "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+        "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    ]
+    assert "NVIDIA GeForce RTX 4090" not in GPU_TYPE_IDS
+    assert "NVIDIA RTX A6000" not in GPU_TYPE_IDS
+    assert "NVIDIA A40" not in GPU_TYPE_IDS
+    assert "NVIDIA GeForce RTX 5090" not in GPU_TYPE_IDS
 
 
 def test_patch_endpoint_reattaches_volume(monkeypatch):
@@ -50,6 +51,12 @@ def test_worker_env_sets_comfy_input_dir(monkeypatch):
     assert env["AIRTABLE_DRAIN"] == "1"
 
 
+def test_worker_env_copies_video_megapixels(monkeypatch):
+    monkeypatch.setenv("VIDEO_MEGAPIXELS", "2.08896")
+    env = worker_env()
+    assert env["VIDEO_MEGAPIXELS"] == "2.08896"
+
+
 def test_worker_env_copies_airtable_field_names(monkeypatch):
     monkeypatch.setenv("AIRTABLE_STATUS_FIELD", "Stato")
     monkeypatch.setenv("AIRTABLE_OUTPUT_FIELD", "Video")
@@ -87,21 +94,22 @@ def test_gpu_pod_queue_drains_without_single_record(monkeypatch):
     assert body["env"]["AIRTABLE_DRAIN"] == "1"
 
 
-def test_video_reference_jobs_require_pro_6000(monkeypatch):
-    from scripts.run_gpu_pod_job import pending_need_high_vram, pod_body
-
+def test_gpu_pod_always_uses_pro_6000(monkeypatch):
     monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
     monkeypatch.delenv("RUNPOD_DATA_CENTER_ID", raising=False)
     monkeypatch.delenv("RUNPOD_GPU_TYPE_IDS", raising=False)
     monkeypatch.setenv("RUNPOD_NETWORK_VOLUME_ID", "vol_123")
     monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
     monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
-    assert pending_need_high_vram(
-        [{"fields": {"Video": [{"url": "https://example.com/a.mp4"}]}}]
-    )
-    body = pod_body(None, high_vram=True)
-    assert body["gpuTypeIds"] == [
+    expected = [
         "NVIDIA RTX PRO 6000 Blackwell Server Edition",
         "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
     ]
+    body = pod_body(None)
+    assert body["gpuTypeIds"] == expected
     assert "NVIDIA GeForce RTX 4090" not in body["gpuTypeIds"]
+
+    monkeypatch.setenv("RUNPOD_DATA_CENTER_ID", "US-IL-1")
+    body_us = pod_body(None)
+    assert body_us["gpuTypeIds"] == expected
+    assert "NVIDIA GeForce RTX 4090" not in body_us["gpuTypeIds"]

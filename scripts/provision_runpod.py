@@ -15,20 +15,10 @@ DEFAULT_CONTAINER_DISK_GB = 30
 DEFAULT_DOCKER_IMAGE = "ls250824/run-comfyui-minimax:08092026"
 
 # Exact enum values from POST /endpoints (wrong names are rejected).
-# Order is rent preference. RTX PRO 6000 (96 GB) is what we use for MiniMax
-# in the GUI; 4090/A6000 remain fallbacks if PRO 6000 is out of stock.
+# 1080p MiniMax R2V needs ~96 GB. Do not fall back to 24 GB 4090.
 GPU_TYPE_IDS = [
     "NVIDIA RTX PRO 6000 Blackwell Server Edition",
-    "NVIDIA GeForce RTX 4090",
-    "NVIDIA RTX A6000",
-    "NVIDIA RTX 6000 Ada Generation",
-    "NVIDIA L40S",
-    "NVIDIA L40",
-    "NVIDIA A40",
-    "NVIDIA A100 80GB PCIe",
-    "NVIDIA GeForce RTX 5090",
-    "NVIDIA RTX A5000",
-    "NVIDIA GeForce RTX 3090",
+    "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
 ]
 
 
@@ -68,6 +58,7 @@ def worker_env() -> dict[str, str]:
         "AIRTABLE_DRAIN",
         "AIRTABLE_IDLE_SECONDS",
         "AIRTABLE_POLL_SECONDS",
+        "VIDEO_MEGAPIXELS",
     )
     env = {
         "MOTION_LORA_NAME": os.environ.get(

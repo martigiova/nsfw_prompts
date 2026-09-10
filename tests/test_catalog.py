@@ -12,7 +12,7 @@ def test_pick_serverless_dc_prefers_high_stock_with_volumes():
     gpus = {
         "gpus": [
             {
-                "id": "NVIDIA GeForce RTX 4090",
+                "id": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
                 "dataCenters": [
                     {"id": "EU-RO-1", "availability": "LOW"},
                     {"id": "US-IL-1", "availability": "HIGH"},
@@ -33,7 +33,7 @@ def test_pick_serverless_dc_skips_none_stock():
     gpus = {
         "gpus": [
             {
-                "id": "NVIDIA GeForce RTX 4090",
+                "id": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
                 "dataCenters": [{"id": "EU-RO-1", "availability": "NONE"}],
             }
         ]

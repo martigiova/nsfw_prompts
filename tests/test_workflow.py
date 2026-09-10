@@ -50,8 +50,8 @@ def test_patch_injects_prompt_refs_and_geometry():
     assert json.loads(pack["references_json"])["references"][0]["file"] == "a.png"
     assert pack["prompt_provider"] == "none"
     assert pack["openrouter_api_key"] == ""
-    assert workflow["184"]["inputs"]["width"] == 736
-    assert workflow["184"]["inputs"]["height"] == 1344
+    assert workflow["184"]["inputs"]["width"] == 1088
+    assert workflow["184"]["inputs"]["height"] == 1920
     assert workflow["184"]["inputs"]["length"] == 192
     assert workflow["154"]["inputs"]["noise_seed"] == 42
     assert LORA_NODE not in workflow

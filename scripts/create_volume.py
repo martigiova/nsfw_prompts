@@ -41,7 +41,7 @@ def main() -> int:
     data_center = os.environ.get("RUNPOD_DATA_CENTER_ID", "").strip()
     if not data_center:
         data_center = pick_serverless_dc()
-        print(f"Picked data center {data_center} (Serverless {os.environ.get('RUNPOD_GPU_TYPE', 'NVIDIA GeForce RTX 4090')} stock)", file=sys.stderr)
+        print(f"Picked data center {data_center} (Serverless {os.environ.get('RUNPOD_GPU_TYPE', 'NVIDIA RTX PRO 6000 Blackwell Server Edition')} stock)", file=sys.stderr)
     body = {
         "name": name,
         "size": int(os.environ.get("RUNPOD_VOLUME_GB", "120")),

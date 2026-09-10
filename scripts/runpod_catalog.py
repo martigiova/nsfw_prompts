@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 
 CATALOG = "https://api.runpod.io/v2"
-PREFERRED_GPU = "NVIDIA GeForce RTX 4090"
+PREFERRED_GPU = "NVIDIA RTX PRO 6000 Blackwell Server Edition"
 _RANK = {"HIGH": 3, "MEDIUM": 2, "LOW": 1, "NONE": 0}
 
 

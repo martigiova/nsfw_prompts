@@ -34,7 +34,7 @@ Tutti da [`Comfy-Org/MiniMax-H3`](https://huggingface.co/Comfy-Org/MiniMax-H3), 
 | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` | `models/loras` | ~2 GB |
 | `hmmotion_minimax-h3_epoch40.safetensors` | `models/loras` | già sul pod GUI |
 
-Volume consigliato: **100–150 GB** di Network Volume (pesi MiniMax), stessa data center dell’endpoint. Container disk del worker: **30 GB** (l’immagine è solo ComfyUI+CUDA; i ~56 GB di pesi stanno già sul volume). **Non** pinna EU-RO-1 se il catalogo Serverless 4090 è `LOW` (i worker restano `throttled`). `scripts/create_volume.py` sceglie un DC con stock `HIGH` se `RUNPOD_DATA_CENTER_ID` è vuoto. GPU preferita: **RTX PRO 6000 Blackwell Server Edition** (96 GB); fallback RTX 4090 24 GB. Timeout esecuzione: 30 minuti. `workersMin=0`, `idleTimeout` 60–120 s così i pesi restano in VRAM tra un job e l’altro.
+Volume consigliato: **100–150 GB** di Network Volume (pesi MiniMax), stessa data center dell’endpoint. Per i job GPU usa il volume **EU-RO-1** (`8kc67gizve`). Container disk del worker: **30 GB** (l’immagine è solo ComfyUI+CUDA; i ~56 GB di pesi stanno già sul volume). GPU **solo RTX PRO 6000 Blackwell** (96 GB, Server o Workstation Edition): 1080p MiniMax (~2.09 MP, 9:16 = 1088×1920) non entra in 24 GB. Niente fallback 4090. Timeout esecuzione: 30 minuti. `workersMin=0`, `idleTimeout` 60–120 s così i pesi restano in VRAM tra un job e l’altro.
 
 ## 1. Network volume (una volta)
 
@@ -78,7 +78,7 @@ Il node `MiniMaxH3ReferencePack` risolve i file con `os.path.join(input_dir, fil
 
 ## 3. Endpoint serverless
 
-In console RunPod: template serverless con quell’immagine, Network Volume selezionato, GPU **NVIDIA RTX PRO 6000 Blackwell Server Edition** (96 GB, stessa scheda del deploy GUI), fallback 4090 / A6000 / L40S. Container disk **30 GB**. Timeout 1 800 000 ms.
+In console RunPod: template serverless con quell’immagine, Network Volume selezionato, GPU **NVIDIA RTX PRO 6000 Blackwell Server Edition** (96 GB) o Workstation Edition. Niente 4090 / A6000 / L40S. Container disk **30 GB**. Timeout 1 800 000 ms.
 
 Oppure, con le env in `.env.example`:
 
@@ -89,7 +89,7 @@ python scripts/provision_runpod.py
 python scripts/provision_runpod.py --update
 ```
 
-`provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA RTX PRO 6000 Blackwell Server Edition`, `NVIDIA GeForce RTX 4090`) e attacca l’endpoint alla **stessa data center del Network Volume**. Container disk default **30 GB**. Env obbligatorie sull’endpoint:
+`provision_runpod.py` usa i nomi GPU esatti dell’API (`NVIDIA RTX PRO 6000 Blackwell Server Edition` / `Workstation Edition`) e attacca l’endpoint alla **stessa data center del Network Volume**. Container disk default **30 GB**. Env obbligatorie sull’endpoint:
 
 - `AIRTABLE_TOKEN`, `AIRTABLE_BASE_ID`
 - `BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`, `BUCKET_NAME`, `BUCKET_PUBLIC_URL_PREFIX`
@@ -149,7 +149,8 @@ Payload:
 - niente preview TAE (risparmio VRAM)
 - niente chiave OpenRouter nel JSON
 - `MiniMaxH3ReferencePack` riceve `references_json` costruito dal worker
-- turbo LoRA 4-step sempre on
+- turbo LoRA 4-step sempre on, UNet/CLIP INT8 (VRAM contenuta su 1080p)
+- risoluzione default **1088×1920** (9:16) / **1920×1088** (16:9); override con `VIDEO_MEGAPIXELS`
 - motion LoRA configurabile
 
 ## Test locali (senza GPU)
