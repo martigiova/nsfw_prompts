@@ -1,0 +1,227 @@
+from minimax_r2v.payload import apply_airtable_fields, parse_job_input
+from minimax_r2v.run import run_job
+
+
+def _touch_media(items, dest):
+    dest.mkdir(parents=True, exist_ok=True)
+    saved = []
+    for item in items:
+        name = item.filename or f"{item.kind}.bin"
+        (dest / name).write_bytes(b"x")
+        saved.append((item, name))
+    return saved
+
+
+AIRTABLE_FIELDS = {
+    "Prompt": "The woman from <Picture 1> walks like <Video 1>",
+    "Image": [
+        {"url": "https://v5.airtableusercontent.com/a.png", "filename": "face.png"},
+        {"url": "https://v5.airtableusercontent.com/b.png", "filename": "clothes.png"},
+    ],
+    "Video": [{"url": "https://v5.airtableusercontent.com/walk.mp4", "filename": "walk.mp4"}],
+    "Duration": 8,
+    "Aspect": "9:16",
+    "Auto Prompt": False,
+}
+
+
+def test_hydrate_fills_prompt_images_video_without_audio():
+    job, error = parse_job_input({"airtable_record_id": "rec1"})
+    assert error is None
+    filled = apply_airtable_fields(job, AIRTABLE_FIELDS)
+    assert filled.needs_hydrate() is False
+    assert filled.prompt.startswith("The woman")
+    assert [item.filename for item in filled.images] == ["face.png", "clothes.png"]
+    assert filled.videos[0].filename == "walk.mp4"
+    assert filled.audios == []
+
+
+def test_hydrate_italian_image_field():
+    job, _ = parse_job_input({"airtable_record_id": "rec1"})
+    filled = apply_airtable_fields(
+        job,
+        {
+            "Prompt": "ciao",
+            "Immagine": [{"url": "https://x/a.png", "filename": "a.png"}],
+            "Video": [{"url": "https://x/v.mp4", "filename": "v.mp4"}],
+        },
+    )
+    assert filled.images[0].filename == "a.png"
+    assert filled.needs_hydrate() is False
+
+
+def test_hydrate_optional_audio():
+    job, _ = parse_job_input({"airtable_record_id": "rec1"})
+    fields = dict(AIRTABLE_FIELDS)
+    fields["Audio"] = [{"url": "https://v5.airtableusercontent.com/voice.wav", "filename": "voice.wav"}]
+    filled = apply_airtable_fields(job, fields)
+    assert filled.audios[0].filename == "voice.wav"
+
+
+def test_run_job_hydrates_from_airtable(monkeypatch, tmp_path):
+    monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
+    monkeypatch.setenv("WORKFLOW_PATH", "workflows/api_template.json")
+    monkeypatch.setenv("SKIP_MOTION_LORA", "1")
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://s3.example")
+    monkeypatch.setenv("BUCKET_NAME", "minimax")
+    monkeypatch.setenv("BUCKET_ACCESS_KEY_ID", "id")
+    monkeypatch.setenv("BUCKET_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setenv("BUCKET_PUBLIC_URL_PREFIX", "https://cdn.example")
+
+    done = {}
+
+    class FakeAirtable:
+        enabled = True
+        status_field = "Status"
+        error_field = "Errore"
+
+        def get_record(self, record_id):
+            assert record_id == "rec1"
+            return {"id": record_id, "fields": AIRTABLE_FIELDS}
+
+        def mark_running(self, record_id, job_id):
+            return None
+
+        def mark_done(self, record_id, url, filename):
+            done["url"] = url
+            done["filename"] = filename
+
+        def patch(self, *args, **kwargs):
+            return {}
+
+    class FakeComfy:
+        def wait_until_ready(self):
+            return None
+
+        def queue_prompt(self, workflow, client_id=None):
+            assert "face.png" in workflow["185"]["inputs"]["references_json"]
+            assert "walk.mp4" in workflow["185"]["inputs"]["references_json"]
+            return "prompt-1"
+
+        def wait_for_prompt(self, prompt_id, poll_interval=2.0, timeout=3600):
+            return {"outputs": {"119": {"gifs": [{"filename": "out.mp4", "subfolder": "", "type": "output"}]}}}
+
+        def collect_videos(self, history):
+            from minimax_r2v.comfy import ComfyClient
+
+            return ComfyClient().collect_videos(history)
+
+        def download_file(self, filename, subfolder="", file_type="output"):
+            return b"fake-mp4"
+
+    monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
+    monkeypatch.setattr(
+        "minimax_r2v.run.download_media",
+        lambda items, destination, timeout=120: _touch_media(items, tmp_path / "input"),
+    )
+    monkeypatch.setattr("minimax_r2v.run.ComfyClient", lambda host=None: FakeComfy())
+    monkeypatch.setattr(
+        "minimax_r2v.run.upload_file",
+        lambda path, key: "https://cdn.example/minimax-r2v/job-1/out.mp4",
+    )
+
+    result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
+    assert "error" not in result
+    assert result["references"] == ["face.png", "clothes.png", "walk.mp4"]
+    assert done["url"].endswith("out.mp4")
+
+
+def test_run_job_fails_when_volume_is_empty(monkeypatch, tmp_path):
+    monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
+    monkeypatch.setenv("WORKFLOW_PATH", "workflows/api_template.json")
+    monkeypatch.setenv("VOLUME_ROOT", str(tmp_path))
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "0")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://s3.example")
+    monkeypatch.setenv("BUCKET_NAME", "minimax")
+    monkeypatch.setenv("BUCKET_PUBLIC_URL_PREFIX", "https://cdn.example")
+    monkeypatch.setenv("BUCKET_ACCESS_KEY_ID", "id")
+    monkeypatch.setenv("BUCKET_SECRET_ACCESS_KEY", "secret")
+
+    errors = {}
+
+    class FakeAirtable:
+        enabled = True
+        status_field = "Status"
+        error_field = "Errore"
+
+        def get_record(self, record_id):
+            return {"id": record_id, "fields": AIRTABLE_FIELDS}
+
+        def mark_running(self, record_id, job_id):
+            return None
+
+        def mark_error(self, record_id, message):
+            errors["message"] = message
+
+        def patch(self, *args, **kwargs):
+            return {}
+
+    monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
+    result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
+    assert "error" in result
+    assert "Network volume" in result["error"]
+    assert "minimax_h3" in errors["message"]
+
+
+def test_run_job_airtable_requires_s3(monkeypatch, tmp_path):
+    monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
+    monkeypatch.setenv("WORKFLOW_PATH", "workflows/api_template.json")
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.delenv("BUCKET_ENDPOINT_URL", raising=False)
+    monkeypatch.delenv("BUCKET_NAME", raising=False)
+
+    errors = {}
+
+    class FakeAirtable:
+        enabled = True
+
+        def get_record(self, record_id):
+            return {"id": record_id, "fields": AIRTABLE_FIELDS}
+
+        def mark_running(self, record_id, job_id):
+            return None
+
+        def mark_error(self, record_id, message):
+            errors["message"] = message
+
+    monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
+    result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
+    assert "S3/R2" in result["error"]
+    assert "S3/R2" in errors["message"]
+
+
+def test_run_job_airtable_rejects_r2_api_endpoint_without_cdn(monkeypatch, tmp_path):
+    monkeypatch.setenv("COMFY_INPUT_DIR", str(tmp_path / "input"))
+    monkeypatch.setenv("SKIP_VOLUME_CHECK", "1")
+    monkeypatch.setenv("AIRTABLE_TOKEN", "tok")
+    monkeypatch.setenv("AIRTABLE_BASE_ID", "appX")
+    monkeypatch.setenv("BUCKET_ENDPOINT_URL", "https://xxx.r2.cloudflarestorage.com")
+    monkeypatch.setenv("BUCKET_NAME", "minimax")
+    monkeypatch.delenv("BUCKET_PUBLIC_URL_PREFIX", raising=False)
+
+    errors = {}
+
+    class FakeAirtable:
+        enabled = True
+
+        def get_record(self, record_id):
+            return {"id": record_id, "fields": AIRTABLE_FIELDS}
+
+        def mark_running(self, record_id, job_id):
+            return None
+
+        def mark_error(self, record_id, message):
+            errors["message"] = message
+
+    monkeypatch.setattr("minimax_r2v.run.AirtableClient", lambda **kwargs: FakeAirtable())
+    result = run_job({"id": "job-1", "input": {"airtable_record_id": "rec1"}})
+    assert "S3/R2" in result["error"]
+    assert "PUBLIC" in errors["message"] or "S3/R2" in errors["message"]

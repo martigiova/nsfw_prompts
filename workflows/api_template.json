@@ -1,0 +1,225 @@
+{
+  "119": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "minimax_r2v",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 12,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": ["133", 0],
+      "audio": ["134", 0]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine"
+    }
+  },
+  "121": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load Video VAE"
+    }
+  },
+  "122": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load Audio VAE"
+    }
+  },
+  "127": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "133": {
+    "inputs": {
+      "samples": ["153", 0],
+      "vae": ["121", 0]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "134": {
+    "inputs": {
+      "samples": ["153", 0],
+      "vae": ["122", 0]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "135": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "137": {
+    "inputs": {
+      "lora_name": "hmmotion_minimax-h3_epoch40.safetensors",
+      "strength_model": 1.0,
+      "model": ["135", 0]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Motion LoRA"
+    }
+  },
+  "149": {
+    "inputs": {
+      "model": ["158", 0],
+      "conditioning": ["184", 0]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Basic Guider"
+    }
+  },
+  "150": {
+    "inputs": {
+      "sampler_name": "seeds_2"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "153": {
+    "inputs": {
+      "noise": ["154", 0],
+      "guider": ["149", 0],
+      "sampler": ["150", 0],
+      "sigmas": ["189", 0],
+      "latent_image": ["184", 1]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "154": {
+    "inputs": {
+      "noise_seed": 0
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "158": {
+    "inputs": {
+      "lora_name": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+      "strength_model": 0.85,
+      "model": ["137", 0]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Turbo LoRA"
+    }
+  },
+  "184": {
+    "inputs": {
+      "prompt": ["185", 18],
+      "width": 1088,
+      "height": 1920,
+      "length": 192,
+      "ref_image_size": "match",
+      "clip": ["127", 0],
+      "vae": ["121", 0],
+      "audio_vae": ["122", 0],
+      "ref_images.ref_image_0": ["185", 0],
+      "ref_images.ref_image_1": ["185", 1],
+      "ref_images.ref_image_2": ["185", 2],
+      "ref_images.ref_image_3": ["185", 3],
+      "ref_images.ref_image_4": ["185", 4],
+      "ref_images.ref_image_5": ["185", 5],
+      "ref_images.ref_image_6": ["185", 6],
+      "ref_images.ref_image_7": ["185", 7],
+      "ref_images.ref_image_8": ["185", 8],
+      "ref_videos.ref_video_0": ["185", 9],
+      "ref_videos.ref_video_1": ["185", 10],
+      "ref_videos.ref_video_2": ["185", 11],
+      "ref_video_audios.ref_video_audio_0": ["185", 12],
+      "ref_video_audios.ref_video_audio_1": ["185", 13],
+      "ref_video_audios.ref_video_audio_2": ["185", 14],
+      "ref_audios.ref_audio_0": ["185", 15],
+      "ref_audios.ref_audio_1": ["185", 16],
+      "ref_audios.ref_audio_2": ["185", 17]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference to Video"
+    }
+  },
+  "185": {
+    "inputs": {
+      "direction": "",
+      "references_json": "{\"references\":[]}",
+      "system_prompt": "",
+      "prompt_provider": "none",
+      "openrouter_api_key": "",
+      "openrouter_model": "google/gemini-3-flash-preview",
+      "reasoning_effort": "none",
+      "api_base": "",
+      "local_model_slug": "",
+      "job_type": "auto",
+      "width": 1088,
+      "height": 1920,
+      "length_seconds": 8,
+      "max_reference_edge": 2048
+    },
+    "class_type": "MiniMaxH3ReferencePack",
+    "_meta": {
+      "title": "MiniMax References Manager"
+    }
+  },
+  "189": {
+    "inputs": {
+      "steps": 2,
+      "start_at_sigma": 0.8,
+      "end_at_sigma": 0,
+      "spacing": "linear",
+      "sigmas": ["190", 0]
+    },
+    "class_type": "ExtendIntermediateSigmas",
+    "_meta": {
+      "title": "ExtendIntermediateSigmas"
+    }
+  },
+  "190": {
+    "inputs": {
+      "steps": 4,
+      "alpha": 0.6,
+      "beta": 0.6,
+      "model": ["158", 0]
+    },
+    "class_type": "BetaSamplingScheduler",
+    "_meta": {
+      "title": "BetaSamplingScheduler"
+    }
+  }
+}

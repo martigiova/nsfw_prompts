@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Serverless entrypoint for the MiniMax GUI template image.
+# Skips the Pod provisioning UI/downloads: weights come from the Network Volume.
+set -euo pipefail
+
+export PYTHONUNBUFFERED=1
+export PYTHONPATH="${PYTHONPATH:-/app}"
+export WORKFLOW_PATH="${WORKFLOW_PATH:-/app/workflows/api_template.json}"
+
+COMFY_ROOT="${COMFY_ROOT:-/ComfyUI}"
+if [[ ! -f "${COMFY_ROOT}/main.py" ]]; then
+  echo "ComfyUI main.py not found at ${COMFY_ROOT}" >&2
+  exit 1
+fi
+
+# MiniMaxH3ReferencePack joins references_json filenames with
+# folder_paths.get_input_directory() = ${COMFY_ROOT}/input when launched from there.
+export COMFY_INPUT_DIR="${COMFY_INPUT_DIR:-${COMFY_ROOT}/input}"
+mkdir -p "${COMFY_INPUT_DIR}" "${COMFY_ROOT}/output"
+
+if [[ -f /app/worker/extra_model_paths.yaml ]]; then
+  cp /app/worker/extra_model_paths.yaml "${COMFY_ROOT}/extra_model_paths.yaml"
+fi
+
+if [[ "${SKIP_VOLUME_CHECK:-0}" != "1" ]]; then
+  echo "minimax-r2v: checking Network Volume weights"
+  python - <<'PY'
+from minimax_r2v.volume import assert_weights_if_volume_present
+assert_weights_if_volume_present()
+PY
+fi
+
+echo "minimax-r2v: starting ComfyUI from ${COMFY_ROOT} input=${COMFY_INPUT_DIR}"
+python "${COMFY_ROOT}/main.py" \
+  --listen 127.0.0.1 \
+  --port 8188 \
+  --disable-auto-launch \
+  --disable-metadata \
+  --log-stdout &
+COMFY_PID=$!
+echo "${COMFY_PID}" > /tmp/comfyui.pid
+sleep 2
+if ! kill -0 "${COMFY_PID}" 2>/dev/null; then
+  echo "minimax-r2v: ComfyUI exited during startup" >&2
+  wait "${COMFY_PID}" || true
+  exit 1
+fi
+
+echo "minimax-r2v: starting RunPod handler"
+python /handler.py &
+HANDLER_PID=$!
+
+while true; do
+  if ! kill -0 "${COMFY_PID}" 2>/dev/null; then
+    echo "minimax-r2v: ComfyUI exited, stopping handler" >&2
+    kill "${HANDLER_PID}" 2>/dev/null || true
+    wait "${COMFY_PID}" || true
+    exit 1
+  fi
+  if ! kill -0 "${HANDLER_PID}" 2>/dev/null; then
+    set +e
+    wait "${HANDLER_PID}"
+    status=$?
+    set -e
+    kill "${COMFY_PID}" 2>/dev/null || true
+    exit "${status}"
+  fi
+  sleep 2
+done
