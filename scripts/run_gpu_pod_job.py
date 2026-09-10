@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Run one Airtable MiniMax job on a GPU Pod.
+"""Run Airtable MiniMax jobs on a GPU Pod, then stop the GPU.
 
 v1 pods honor dockerEntrypoint, so this bypasses the MiniMax image `/start.sh`.
-Set CONFIRM_GPU_JOB=1 and AIRTABLE_RECORD_ID (or pass --record).
+The Network Volume keeps the weights. The pod is created for the queue and
+deleted when Todo/Queued/Running are gone — no idle GPU cost.
+
+Set CONFIRM_GPU_JOB=1. Pass --queue for every pending row, or --record rec...
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from minimax_r2v.airtable import ACTIVE_STATUSES, AirtableClient
 from scripts.provision_runpod import (
     DEFAULT_CONTAINER_DISK_GB,
     DEFAULT_DOCKER_IMAGE,
@@ -29,13 +33,15 @@ from scripts.provision_runpod import (
 from scripts.runpod_http import request, resolve_data_center
 
 
-def pod_body(record_id: str) -> dict:
+def pod_body(record_id: str | None = None) -> dict:
     volume = os.environ.get("RUNPOD_NETWORK_VOLUME_ID", "")
     if not volume:
         raise SystemExit("Set RUNPOD_NETWORK_VOLUME_ID")
     env = worker_env()
-    env["AIRTABLE_RECORD_ID"] = record_id
+    env["AIRTABLE_DRAIN"] = "1"
     env["PASSWORD"] = os.environ.get("PASSWORD", "minimax-r2v")
+    if record_id:
+        env["AIRTABLE_RECORD_ID"] = record_id
     gpu_ids = list(GPU_TYPE_IDS)
     data_center = resolve_data_center(volume)
     # US-IL-1 has Serverless/pod 4090 stock; RTX PRO 6000 is not offered there.
@@ -60,6 +66,14 @@ def pod_body(record_id: str) -> dict:
     if data_center:
         body["dataCenterIds"] = [data_center]
     return body
+
+
+def _airtable() -> AirtableClient:
+    return AirtableClient(
+        token=os.environ["AIRTABLE_TOKEN"],
+        base_id=os.environ["AIRTABLE_BASE_ID"],
+        table=os.environ.get("AIRTABLE_TABLE_NAME", "Minimax"),
+    )
 
 
 def _airtable_record(record_id: str) -> dict:
@@ -100,46 +114,103 @@ def wait_for_output(record_id: str, timeout: int) -> dict:
     raise SystemExit(f"Timed out waiting for Airtable Output: {json.dumps(last)}")
 
 
+def wait_for_queue(timeout: int) -> list[dict]:
+    """Wait until no Todo/Queued/Running rows remain, then return all records."""
+    client = _airtable()
+    deadline = time.time() + timeout
+    stable = 0
+    last: list[dict] = []
+    while time.time() < deadline:
+        records = client.list_records()
+        last = records
+        snapshot = []
+        active = []
+        for record in records:
+            fields = record.get("fields") or {}
+            status = str(fields.get("Status") or "")
+            row = {
+                "id": record.get("id"),
+                "Status": status,
+                "Output": fields.get("Output"),
+                "Errore": str(fields.get("Errore") or "")[:120],
+            }
+            snapshot.append(row)
+            if status in ACTIVE_STATUSES:
+                active.append(row)
+        print(json.dumps({"active": len(active), "rows": snapshot}))
+        if not active:
+            stable += 1
+            if stable >= 2:
+                return records
+        else:
+            stable = 0
+        time.sleep(20)
+    raise SystemExit(f"Timed out waiting for Airtable queue to drain ({len(last)} records)")
+
+
 def terminate(pod_id: str) -> None:
     request("DELETE", f"/pods/{pod_id}")
     print(f"Terminated GPU job pod {pod_id}")
 
 
+def _queue_ok(records: list[dict]) -> bool:
+    ok = True
+    for record in records:
+        fields = record.get("fields") or {}
+        status = str(fields.get("Status") or "")
+        if status in ACTIVE_STATUSES:
+            ok = False
+        if status == "Error":
+            print(record.get("id"), fields.get("Errore") or "Error", file=sys.stderr)
+            ok = False
+        if status == "Done" and fields.get("Output"):
+            print("Output:", record.get("id"), fields["Output"])
+    return ok
+
+
 def main() -> int:
+    queue = "--queue" in sys.argv
     record_id = ""
     if "--record" in sys.argv:
         idx = sys.argv.index("--record")
         if idx + 1 < len(sys.argv):
             record_id = sys.argv[idx + 1]
     record_id = record_id or os.environ.get("AIRTABLE_RECORD_ID", "").strip()
-    if not record_id:
-        print("Pass --record rec... or set AIRTABLE_RECORD_ID", file=sys.stderr)
+    if not record_id and not queue:
+        print("Pass --queue or --record rec...", file=sys.stderr)
         return 1
     if os.environ.get("CONFIRM_GPU_JOB") != "1":
-        print(json.dumps(pod_body(record_id), indent=2))
+        print(json.dumps(pod_body(record_id or None), indent=2))
         print("Dry run. Set CONFIRM_GPU_JOB=1 to create the GPU pod.", file=sys.stderr)
         return 0
 
-    body = pod_body(record_id)
+    body = pod_body(record_id or None)
     pod = request("POST", "/pods", body)
     print("Pod:", json.dumps({k: pod.get(k) for k in ("id", "desiredStatus", "imageName", "dataCenterId")}, indent=2))
     pod_id = pod.get("id") or pod.get("podId")
     if not pod_id:
         print("Could not read pod id", file=sys.stderr)
         return 1
-    timeout = int(os.environ.get("GPU_JOB_TIMEOUT", "1800"))
+    timeout = int(os.environ.get("GPU_JOB_TIMEOUT", "3600" if queue or not record_id else "1800"))
+    ok = False
     try:
-        fields = wait_for_output(record_id, timeout)
+        if queue or not record_id:
+            records = wait_for_queue(timeout)
+            ok = _queue_ok(records)
+        else:
+            fields = wait_for_output(record_id, timeout)
+            records = [{"id": record_id, "fields": fields}]
+            ok = bool(fields.get("Output") and str(fields.get("Status")) == "Done")
+            if ok:
+                print("Output:", fields["Output"])
+            else:
+                print(fields.get("Errore") or "Job did not write Output", file=sys.stderr)
     finally:
         try:
             terminate(pod_id)
         except SystemExit as exc:
             print(exc, file=sys.stderr)
-    if fields.get("Output") and str(fields.get("Status")) == "Done":
-        print("Output:", fields["Output"])
-        return 0
-    print(fields.get("Errore") or "Job did not write Output", file=sys.stderr)
-    return 1
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

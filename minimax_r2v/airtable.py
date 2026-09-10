@@ -9,6 +9,8 @@ from urllib.parse import quote
 import requests
 
 DEFAULT_API = "https://api.airtable.com/v0"
+PENDING_STATUSES = ("Todo", "Queued")
+ACTIVE_STATUSES = ("Todo", "Queued", "Running")
 
 
 class AirtableClient:
@@ -33,6 +35,39 @@ class AirtableClient:
     @property
     def enabled(self) -> bool:
         return bool(self.token and self.base_id and self.table)
+
+    def list_records(self, formula: str | None = None) -> list[dict[str, Any]]:
+        if not self.enabled:
+            raise RuntimeError("Airtable is not configured")
+        records: list[dict[str, Any]] = []
+        offset = None
+        while True:
+            params: dict[str, str] = {"pageSize": "100"}
+            if formula:
+                params["filterByFormula"] = formula
+            if offset:
+                params["offset"] = offset
+            url = f"{DEFAULT_API}/{self.base_id}/{quote(self.table, safe='')}"
+            response = requests.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "User-Agent": "minimax-r2v/1.0",
+                },
+                params=params,
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            records.extend(payload.get("records") or [])
+            offset = payload.get("offset")
+            if not offset:
+                return records
+
+    def list_pending(self) -> list[dict[str, Any]]:
+        field = self.status_field.replace("'", "\\'")
+        parts = ",".join(f"{{{field}}}='{status}'" for status in PENDING_STATUSES)
+        return self.list_records(f"OR({parts})")
 
     def get_record(self, record_id: str) -> dict[str, Any]:
         if not self.enabled:

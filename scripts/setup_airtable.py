@@ -26,7 +26,7 @@ FIELDS = (
     ("Job ID", {"type": "singleLineText"}),
 )
 
-STATUS_CHOICES = ("Queued", "Running", "Done", "Error")
+STATUS_CHOICES = ("Todo", "Queued", "Running", "Done", "Error")
 DELETE_IF_UNUSED = {"Attachments", "Notes"}
 
 

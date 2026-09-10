@@ -10,7 +10,7 @@ Campi usati dal worker (i nomi coincidono con le env, default sotto).
 | `Audio` | Attachment | Opzionale |
 | `Duration` | Number | Secondi (default worker: 8, max 15) |
 | `Aspect` | Text | Es. `9:16` |
-| `Status` | Single select | `Queued`, `Running`, `Done`, `Error` |
+| `Status` | Single select | `Todo`, `Queued`, `Running`, `Done`, `Error` |
 | `Output` | URL | Link pubblico R2 (`References/<job>/…mp4`) |
 | `Job ID` | Single line text | Id job RunPod |
 | `Errore` | Long text | Messaggio se fallisce |

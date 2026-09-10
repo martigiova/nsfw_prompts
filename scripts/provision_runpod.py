@@ -65,6 +65,9 @@ def worker_env() -> dict[str, str]:
         "APP_ROOT",
         "HF_HUB_OFFLINE",
         "TRANSFORMERS_OFFLINE",
+        "AIRTABLE_DRAIN",
+        "AIRTABLE_IDLE_SECONDS",
+        "AIRTABLE_POLL_SECONDS",
     )
     env = {
         "MOTION_LORA_NAME": os.environ.get(
@@ -79,6 +82,8 @@ def worker_env() -> dict[str, str]:
         "APP_ROOT": os.environ.get("APP_ROOT", "/runpod-volume/nsfw_prompts"),
         "HF_HUB_OFFLINE": os.environ.get("HF_HUB_OFFLINE", "1"),
         "TRANSFORMERS_OFFLINE": os.environ.get("TRANSFORMERS_OFFLINE", "1"),
+        "AIRTABLE_DRAIN": os.environ.get("AIRTABLE_DRAIN", "1"),
+        "AIRTABLE_IDLE_SECONDS": os.environ.get("AIRTABLE_IDLE_SECONDS", "30"),
         # MiniMax /start.sh starts code-server when this is set. Harmless if we
         # replace the entrypoint; required if the GUI script still runs.
         "PASSWORD": os.environ.get("PASSWORD", "minimax-r2v"),

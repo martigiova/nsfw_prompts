@@ -132,7 +132,7 @@ def test_volume_start_script_uses_repo_on_volume():
     assert "ComfyUI-Login" in text
     assert "COMFY_LOGIN_TOKEN" in text
     assert "AIRTABLE_RECORD_ID" in text
-    assert "one-shot Airtable record" in text
+    assert "draining Airtable" in text
     assert "sleep" in text
     assert "infinity" in text
     text = Path("scripts/on_pod.sh").read_text(encoding="utf-8")

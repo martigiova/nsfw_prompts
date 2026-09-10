@@ -102,11 +102,13 @@ Schema e script: `airtable/SCHEMA.md` e `airtable/submit_job.js`.
 
 Campi: Prompt, Image, Video, Audio (opzionale), Duration, Aspect, Auto Prompt, Status, Output, Job ID, Errore.
 
-Inserisci una riga, metti `Status=Queued`. L’automazione nativa Airtable **non si crea via API**: incolla `airtable/submit_job.js` (trigger Status=Queued, secrets `RUNPOD_ENDPOINT_ID` + `RUNPOD_API_KEY`). In alternativa, dallo stesso repo:
+Inserisci una riga, metti `Status=Todo` o `Queued`. Un pod GPU si accende, svuota la coda, poi **si spegne** (niente costo a vuoto; i pesi restano sul volume). L’automazione nativa Airtable **non si crea via API**: incolla `airtable/submit_job.js` (trigger Status=Queued, secrets `RUNPOD_ENDPOINT_ID` + `RUNPOD_API_KEY`). In alternativa, dallo stesso repo:
 
 ```bash
 python scripts/submit_airtable_job.py --image https://.../face.jpg --prompt "The person from <Picture 1> smiles"
-# fallback se il serverless resta sul CMD GUI:
+# coda Airtable su un pod GPU (si spegne a coda vuota):
+CONFIRM_GPU_JOB=1 python scripts/run_gpu_pod_job.py --queue
+# un solo record:
 CONFIRM_GPU_JOB=1 python scripts/run_gpu_pod_job.py --record recXXXXXXXX
 ```
 

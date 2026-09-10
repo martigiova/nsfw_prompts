@@ -110,27 +110,18 @@ if ! kill -0 "${COMFY_PID}" 2>/dev/null; then
   exit 1
 fi
 
-run_one_shot() {
-  echo "minimax-r2v: one-shot Airtable record ${AIRTABLE_RECORD_ID}"
+run_airtable_drain() {
+  echo "minimax-r2v: draining Airtable Todo/Queued then parking (GPU is stopped from outside)"
   set +e
   python - <<'PY'
-import json
 import os
 import sys
 
-from minimax_r2v.run import run_job
+from minimax_r2v.queue import drain_airtable_queue
 
-job_id = os.environ.get("RUNPOD_POD_ID") or os.environ.get("RUNPOD_JOB_ID") or "pod"
-result = run_job(
-    {
-        "id": job_id,
-        "input": {"airtable_record_id": os.environ["AIRTABLE_RECORD_ID"]},
-    }
-)
-print(json.dumps(result)[:8000], flush=True)
-if result.get("error"):
-    sys.exit(1)
-# Keep PID 1 alive so RunPod does not restart the container and re-run the job.
+stats = drain_airtable_queue()
+print(stats, flush=True)
+# Park so RunPod does not restart the container. The launcher deletes the pod.
 os.execvp("sleep", ["sleep", "infinity"])
 PY
   status=$?
@@ -140,8 +131,8 @@ PY
   exit "${status}"
 }
 
-if [[ -n "${AIRTABLE_RECORD_ID:-}" ]]; then
-  run_one_shot
+if [[ -n "${AIRTABLE_RECORD_ID:-}" || "${AIRTABLE_DRAIN:-0}" == "1" ]]; then
+  run_airtable_drain
 fi
 
 echo "minimax-r2v: starting RunPod handler"

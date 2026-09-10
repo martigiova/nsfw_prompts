@@ -1,4 +1,4 @@
-from minimax_r2v.airtable import AirtableClient
+from minimax_r2v.airtable import AirtableClient, PENDING_STATUSES
 
 
 def test_mark_done_sends_attachment_url(monkeypatch):
@@ -50,3 +50,29 @@ def test_airtable_honors_env_field_names(monkeypatch):
     assert fields["Stato"] == "Done"
     assert "Status" not in fields
     assert fields["Video"] == "https://cdn.example.com/out.mp4"
+
+
+def test_list_pending_filters_todo_and_queued(monkeypatch):
+    seen = {}
+
+    def fake_get(url, headers=None, params=None, timeout=30):
+        seen["url"] = url
+        seen["params"] = params
+
+        class Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"records": [{"id": "recTodo", "fields": {"Status": "Todo"}}]}
+
+        return Resp()
+
+    monkeypatch.setattr("minimax_r2v.airtable.requests.get", fake_get)
+    client = AirtableClient(token="tok", base_id="appX", table="Minimax")
+    rows = client.list_pending()
+    assert rows[0]["id"] == "recTodo"
+    formula = seen["params"]["filterByFormula"]
+    assert "{Status}='Todo'" in formula
+    assert "{Status}='Queued'" in formula
+    assert PENDING_STATUSES == ("Todo", "Queued")
